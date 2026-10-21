@@ -59,6 +59,40 @@ WHERE e.dept_id(+) = d.dept_id`);
     expect(to?.name).toBe('dm_emp');
   });
 
+  it('DM8 的 (+) 在右侧时保留左侧表', () => {
+    const { relations } = analyze(`SELECT e.emp_name
+FROM dm_emp e, dm_dept d
+WHERE e.dept_id = d.dept_id(+)`);
+    expect(relations.joins).toHaveLength(1);
+    expect(relations.joins[0]?.type).toBe('left');
+    const from = relations.sources.find((source) => source.id === relations.joins[0]?.from);
+    const to = relations.sources.find((source) => source.id === relations.joins[0]?.to);
+    expect(from?.name).toBe('dm_emp');
+    expect(to?.name).toBe('dm_dept');
+  });
+
+  it('DM8 多个 (+) 会生成多条左连接边', () => {
+    const { relations } = analyze(`SELECT e.emp_name
+FROM dm_emp e, dm_dept d, dm_org o
+WHERE e.dept_id = d.dept_id(+)
+  AND e.org_id = o.id(+)`);
+    expect(relations.joins).toHaveLength(2);
+    expect(relations.joins.every((join) => join.type === 'left')).toBe(true);
+  });
+
+  it('DM8 普通 JOIN 与 (+) 混用时不丢边', () => {
+    const { relations } = analyze(`SELECT e.emp_name
+FROM dm_emp e
+JOIN dm_dept d ON d.id = e.dept_id
+, dm_org o
+WHERE e.org_id = o.id(+)`);
+    expect(relations.joins).toHaveLength(2);
+    expect(relations.joins.map((join) => join.type).sort()).toEqual([
+      'inner',
+      'left',
+    ]);
+  });
+
   it('CTE 会标记为 cte 数据源', () => {
     const { relations, metrics } = analyze(`WITH base AS (
   SELECT id FROM t

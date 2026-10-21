@@ -5,10 +5,12 @@ import { deepNestingRule } from './rules/deep-nesting';
 import { distinctWithJoinRule } from './rules/distinct-with-join';
 import { functionOnColumnRule } from './rules/function-on-column';
 import { hardcodedDateRule } from './rules/hardcoded-date';
+import { implicitCastRule } from './rules/implicit-cast';
 import { joinAmplificationRule } from './rules/join-amplification';
 import { limitWithoutOrderRule } from './rules/limit-without-order';
 import { missingJoinConditionRule } from './rules/missing-join-condition';
 import { notInNullRule } from './rules/not-in-null';
+import { plusWrongSideRule } from './rules/plus-wrong-side';
 import { repeatedComputationRule } from './rules/repeated-computation';
 import { repeatedTableRule } from './rules/repeated-table';
 import { selectStarRule } from './rules/select-star';
@@ -20,6 +22,7 @@ export const RULES: RuleDefinition[] = [
   selectStarRule,
   missingJoinConditionRule,
   functionOnColumnRule,
+  implicitCastRule,
   repeatedTableRule,
   subqueryOrderWithoutLimitRule,
   distinctWithJoinRule,
@@ -32,6 +35,7 @@ export const RULES: RuleDefinition[] = [
   joinAmplificationRule,
   repeatedComputationRule,
   dm8RownumOrderRule,
+  plusWrongSideRule,
 ];
 
 export function runRules(

@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.3.7**：B 批 QueryBlock 统一模型 + 4 条规则完成，规则 15/17；错误 UX、32 条语料、性能基准已就绪，导出后置。
+> 当前 **0.3.8**：C 批 DM8 `(+)` 专项 + RSK-04/17 完成，规则 17/17；M3-3 还剩 UNION / CTE 链 / SVG 子查询节点；导出后置。
 > 下一步：完整 17 条规则、语料回归；导出后置到最后。
 
 ---
@@ -73,12 +73,12 @@
 | 结构指标 | 表数、JOIN 数、输出列数、嵌套深度、复杂度；嵌套深度改用 QueryBlock 计算 |
 | 逐句人话解释 | 每个子句一段大白话 + 术语版 + 涉及的表 |
 | 一句话总结 | AST 驱动：解析 CTE 底层表、取数来源、过滤条件、分组、输出列、排序与限条 |
-| 风险提示 | 已接入 15 条：结构 / 性能 / 语义 / DM8 四类；规则注册表 + 置信度 + 去重 + QueryBlock 上下文 |
+| 风险提示 | 已接入 17 条：结构 / 性能 / 语义 / DM8 四类；规则注册表 + 置信度 + 去重 + QueryBlock 上下文 |
 | 双向定位 | 点行 → 高亮对应解释；点解释 → 滚动到原文行 |
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
-| 真实语料 | 32 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
+| 真实语料 | 37 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 102 ms；`pnpm bench` 可复现 |
-| 测试 | 118 个测试：86 个单元测试 + 32 条真实语料 |
+| 测试 | 129 个测试：92 个单元测试 + 37 条真实语料 |
 ### 解析失败时
 
 ![解析失败提示](assets/preview-error.png)
@@ -120,7 +120,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 118 个测试（86 单元 + 32 语料） |
+| `pnpm test` | 129 个测试（92 单元 + 37 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 |
 | `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源 |
@@ -146,12 +146,12 @@ pnpm dev              # http://localhost:5173
 
 ### 真实语料
 
-`app/tests/corpus/` 下有 **32 条脱敏 SQL**，覆盖：
+`app/tests/corpus/` 下有 **37 条脱敏 SQL**，覆盖：
 
-- MySQL：GMV 聚合、窗口函数、两层 CTE、UNION、CASE、IN 子查询、多表 JOIN、JSON、注释里的分号、派生表、多语句、派生表 `ORDER BY`、`DISTINCT` + JOIN、`UNION` 去重、重复表达式、自连接重复表、3 层嵌套、SELECT 相关子查询、低基数列 JOIN + 聚合
+- MySQL：GMV 聚合、窗口函数、两层 CTE、UNION、CASE、IN 子查询、多表 JOIN、JSON、注释里的分号、派生表、多语句、派生表 `ORDER BY`、`DISTINCT` + JOIN、`UNION` 去重、重复表达式、自连接重复表、3 层嵌套、SELECT 相关子查询、低基数列 JOIN + 聚合、隐式类型转换
 - PostgreSQL：DISTINCT ON、FILTER、CTE + INTERVAL、`::` 类型转换、LATERAL
 - SQL Server：TOP、CTE、DATEADD
-- DM8：ROWNUM、`(+)` 外连接
+- DM8：ROWNUM、`(+)` 左侧 / 右侧、两侧都写 `(+)`、可空侧被过滤
 - MyBatis：`<where>` / `<if>` / `#{}`
 - 坏 SQL：缺右括号、SELECT 列表为空
 
@@ -270,12 +270,12 @@ M2 起整条流水线放进 Web Worker，主线程不阻塞。
 
 ### 7.6 风险规则
 
-目标 17 条，当前已接入 ✅ 15 条。规则已迁到 `core/rules/` 注册表：统一上下文、严重度 / 类别 / 置信度、同一位置去重；新增规则只需加一个定义文件。
+目标 17 条，当前已接入 ✅ 17/17。规则已迁到 `core/rules/` 注册表：统一上下文、严重度 / 类别 / 置信度、同一位置去重；新增规则只需加一个定义文件。RSK-04 / RSK-14 是低置信启发式，UI 会标「启发式」。
 
 - **结构**：✅ `SELECT *`（RSK-01）、✅ 缺连接条件 / 笛卡尔积（RSK-02）、✅ 嵌套过深（RSK-10）
 - **性能**：✅ 函数包字段（RSK-03）、✅ 同一大表重复扫描（RSK-05）、✅ 子查询 `ORDER BY` 无 `LIMIT`（RSK-06）、✅ `DISTINCT` 掩盖放大（RSK-07）、✅ `UNION` 可改 `UNION ALL`（RSK-08）、✅ `SELECT` 里的关联子查询（RSK-12）、✅ 1:N JOIN 放大（RSK-14）、✅ 重复计算（RSK-15）
-- **语义**：隐式类型转换（RSK-04）、✅ 硬编码日期（RSK-09）、✅ `NOT IN` 遇 NULL（RSK-11）、✅ `LIMIT` 无 `ORDER BY`（RSK-13）
-- **DM8**：✅ `ROWNUM` 与 `ORDER BY` 同层（RSK-16）、`(+)` 放错侧（RSK-17）
+- **语义**：✅ 隐式类型转换（RSK-04）、✅ 硬编码日期（RSK-09）、✅ `NOT IN` 遇 NULL（RSK-11）、✅ `LIMIT` 无 `ORDER BY`（RSK-13）
+- **DM8**：✅ `ROWNUM` 与 `ORDER BY` 同层（RSK-16）、✅ `(+)` 放错侧（RSK-17）
 
 所有提示都注明：**静态代码检查，不是执行计划，也不代表一定会慢。**
 
@@ -296,7 +296,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库，主包约 712 KB gzip，Worker 解析包约 515 KB gzip。
+- 不加载 Web Font、不引 UI 组件库，主包约 713 KB gzip，Worker 解析包约 516 KB gzip。
 
 ### 7.9 设计规范（实现依据）
 
@@ -337,7 +337,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M0 | 设计 | 需求、技术方案、交互、路线图 | ✅ |
 | M1 | 最小闭环 | 分句、上色、逐句解释、双向定位 | ✅ v0.1.0 |
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
-| M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 进行中（关系 / 血缘 / 指标 / 规则引擎 / QueryBlock 完成；规则 15/17；导出后置） |
+| M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17 完成；M3-3 还剩 UNION / CTE 链 / SVG 子查询节点；导出后置 |
 | M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 计划 |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
@@ -373,7 +373,7 @@ sql-xray/
 │  │  ├─ workers/            # 分析 Worker + 消息协议
 │  │  └─ ui/                 # 编辑器 / 解释列表 / 主页面
 │  ├─ tests/                 # 单元测试
-│  │  └─ corpus/             # 32 条脱敏 SQL 语料
+│  │  └─ corpus/             # 37 条脱敏 SQL 语料
 │  ├─ benchmark/             # 性能基准
 │  ├─ scripts/               # 构建产物隐私检查
 │  └─ dist/                  # 构建产物（不提交）

@@ -31,6 +31,7 @@ describe('rule engine', () => {
       'RSK-01',
       'RSK-02',
       'RSK-03',
+      'RSK-04',
       'RSK-05',
       'RSK-06',
       'RSK-07',
@@ -43,6 +44,7 @@ describe('rule engine', () => {
       'RSK-14',
       'RSK-15',
       'RSK-16',
+      'RSK-17',
     ]);
     for (const rule of RULES) {
       expect(rule.name.length).toBeGreaterThan(0);
@@ -71,6 +73,11 @@ describe('rule engine', () => {
       id: 'RSK-03',
       positive: "SELECT id FROM t WHERE DATE(created_at) = '2024-01-01'",
       negative: 'SELECT id FROM t WHERE created_at >= NOW() - INTERVAL 7 DAY',
+    },
+    {
+      id: 'RSK-04',
+      positive: "SELECT id FROM t WHERE user_id = '123'",
+      negative: "SELECT id FROM t WHERE status = '1'",
     },
     {
       id: 'RSK-05',
@@ -139,6 +146,12 @@ describe('rule engine', () => {
       negative: 'SELECT * FROM t WHERE ROWNUM <= 10',
       dialect: 'dm8',
     },
+    {
+      id: 'RSK-17',
+      positive: 'SELECT * FROM a, b WHERE a.id(+) = b.id(+)',
+      negative: 'SELECT * FROM a, b WHERE a.id = b.id(+)',
+      dialect: 'dm8',
+    },
   ];
 
   for (const entry of cases) {
@@ -205,6 +218,30 @@ describe('rule engine', () => {
   it('RSK-06 不把最外层 ORDER BY 当成子查询', () => {
     const analysis = analyzeSql('SELECT id FROM t ORDER BY id LIMIT 10', 'mysql');
     expect(analysis.issues.some((issue) => issue.ruleId === 'RSK-06')).toBe(false);
+  });
+
+  it('RSK-17 能识别可空侧被过滤，保留侧被过滤不误报', () => {
+    const nullableFiltered = analyzeSql(
+      'SELECT * FROM a, b WHERE a.id = b.id(+) AND b.status = 1',
+      'dm8',
+    );
+    expect(
+      nullableFiltered.issues.some((issue) => issue.ruleId === 'RSK-17'),
+    ).toBe(true);
+
+    const preservedFiltered = analyzeSql(
+      'SELECT * FROM a, b WHERE a.id = b.id(+) AND a.status = 1',
+      'dm8',
+    );
+    expect(
+      preservedFiltered.issues.some((issue) => issue.ruleId === 'RSK-17'),
+    ).toBe(false);
+
+    const notJoin = analyzeSql(
+      'SELECT * FROM a, b WHERE a.id(+) > 5',
+      'dm8',
+    );
+    expect(notJoin.issues.some((issue) => issue.ruleId === 'RSK-17')).toBe(true);
   });
 
   it('同一规则同一位置只报一次，且保留低置信度', () => {

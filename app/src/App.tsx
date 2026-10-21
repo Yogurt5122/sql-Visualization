@@ -530,7 +530,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.7
+          左侧色条对应子句 · 点击行可定位 · v0.3.8
         </span>
       </footer>
     </div>

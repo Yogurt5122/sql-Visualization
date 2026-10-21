@@ -245,6 +245,18 @@ export function buildRelations(statement: Statement): Relations {
     const using = afterKeyword(clause.text, 'USING');
     const condition = on ?? (using ? `USING (${using})` : undefined);
 
+    // JOIN 子句后面还可能跟逗号表，例如：
+    // JOIN b ON b.id = a.id, c
+    const tail = on ?? using ?? afterKeyword(clause.text, 'JOIN');
+    if (tail) {
+      for (const extra of splitTopLevel(tail, ',').slice(1)) {
+        const parsed = parseSourcePart(extra);
+        if (parsed) {
+          addSource(parsed.name, parsed.alias, parsed.kind, clause.span.startLine);
+        }
+      }
+    }
+
     const prefix = match[1]?.toUpperCase();
     const type: JoinType = prefix
       ? prefix === 'LEFT'
