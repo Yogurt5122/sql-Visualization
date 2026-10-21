@@ -103,6 +103,10 @@ export function ClauseList({
                         <span className="severity-dot" aria-hidden="true" />
                         <span>
                           <strong>{issue.ruleId}</strong> {issue.title}
+                          {issue.confidence === 'low' ? (
+                            <span className="issue-heuristic">启发式</span>
+                          ) : null}
+                          <span className="issue-inline-detail">{issue.detail}</span>
                         </span>
                       </li>
                     ))}

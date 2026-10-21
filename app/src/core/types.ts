@@ -76,13 +76,18 @@ export interface Explanation {
 }
 
 export type IssueSeverity = 'high' | 'medium' | 'low';
+export type IssueConfidence = 'high' | 'medium' | 'low';
+export type IssueCategory = 'structure' | 'performance' | 'semantic' | 'dm8';
 
 export interface Issue {
   id: string;
   ruleId: string;
   severity: IssueSeverity;
+  category: IssueCategory;
+  confidence: IssueConfidence;
   title: string;
   detail: string;
+  suggestion?: string;
   clauseId?: string;
   span?: Span;
 }

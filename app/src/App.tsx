@@ -62,6 +62,11 @@ const SAMPLE_BROKEN = `SELECT
 FROM dwd_order
 WHERE dt = '2024-12-01';`;
 
+const SAMPLE_RISK = `SELECT * FROM dwd_order o
+JOIN dim_user u
+WHERE o.user_id = u.id
+LIMIT 10;`;
+
 let scrollNonce = 0;
 
 function initialSql(): string {
@@ -70,6 +75,7 @@ function initialSql(): string {
   if (sample === 'cte') return SAMPLE_CTE;
   if (sample === 'multi') return SAMPLE_MULTI;
   if (sample === 'broken') return SAMPLE_BROKEN;
+  if (sample === 'risk') return SAMPLE_RISK;
   if (sample === 'dm8') return SAMPLE_DM8;
   return SAMPLE_MYSQL;
 }
@@ -427,10 +433,17 @@ export default function App() {
                       <span className="issue-main">
                         <span className="issue-title">
                           <code>{issue.ruleId}</code> {issue.title}
+                          {issue.confidence === 'low' ? (
+                            <span className="issue-heuristic">启发式</span>
+                          ) : null}
                         </span>
                         <span className="issue-location">
                           {issue.span ? `第 ${issue.span.startLine} 行` : statementLocation(issue)}
                         </span>
+                        <span className="issue-detail">{issue.detail}</span>
+                        {issue.suggestion ? (
+                          <span className="issue-suggestion">建议：{issue.suggestion}</span>
+                        ) : null}
                       </span>
                     </button>
                   </li>
@@ -495,7 +508,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.5
+          左侧色条对应子句 · 点击行可定位 · v0.3.6
         </span>
       </footer>
     </div>

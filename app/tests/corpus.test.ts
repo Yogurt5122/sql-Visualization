@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeSql } from '../src/core/explain';
+import { RULES } from '../src/core/rules';
 import { CORPUS } from './corpus/manifest';
 
 const corpusDir = join(dirname(fileURLToPath(import.meta.url)), 'corpus');
+const RULE_IDS = new Set(RULES.map((rule) => rule.id));
 
 describe('真实 SQL 语料', () => {
   for (const entry of CORPUS) {
@@ -26,6 +28,11 @@ describe('真实 SQL 语料', () => {
         expect(analysis.metrics.tables).toBe(entry.expectedTables);
       }
       if (entry.expectPreprocess) expect(analysis.preprocess.detected).toBe(true);
+      if (entry.expectRules) {
+        for (const ruleId of entry.expectRules) {
+          expect(analysis.issues.some((issue) => issue.ruleId === ruleId)).toBe(true);
+        }
+      }
 
       if (entry.expectParseError) {
         expect(analysis.parseError).toBeDefined();
@@ -67,6 +74,16 @@ describe('真实 SQL 语料', () => {
         0,
       );
       expect(analysis.explanations).toHaveLength(clauseCount);
+
+      const issueIds = analysis.issues.map((issue) => issue.id);
+      expect(new Set(issueIds).size).toBe(issueIds.length);
+      for (const issue of analysis.issues) {
+        expect(RULE_IDS.has(issue.ruleId)).toBe(true);
+        if (issue.span) {
+          expect(issue.span.startLine).toBeGreaterThanOrEqual(1);
+          expect(issue.span.endLine).toBeLessThanOrEqual(lineCount);
+        }
+      }
     });
   }
 });

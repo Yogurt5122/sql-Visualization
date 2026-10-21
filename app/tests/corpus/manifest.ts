@@ -8,6 +8,7 @@ export interface CorpusCase {
   expectedTables?: number;
   expectParseError?: boolean;
   expectPreprocess?: boolean;
+  expectRules?: string[];
   note: string;
 }
 
@@ -78,6 +79,7 @@ export const CORPUS: CorpusCase[] = [
     mode: 'semantic',
     minStatements: 1,
     expectedTables: 1,
+    expectRules: ['RSK-03'],
     note: 'MySQL JSON 函数',
   },
   {
@@ -94,6 +96,41 @@ export const CORPUS: CorpusCase[] = [
     minStatements: 1,
     expectedTables: 1,
     note: 'MySQL 派生表二次聚合',
+  },
+  {
+    file: 'mysql_derived_order.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    expectRules: ['RSK-06'],
+    note: 'MySQL 派生表 ORDER BY 无 LIMIT',
+  },
+  {
+    file: 'mysql_distinct_join.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 2,
+    expectRules: ['RSK-07'],
+    note: 'MySQL DISTINCT + JOIN',
+  },
+  {
+    file: 'mysql_union_distinct.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectRules: ['RSK-08'],
+    note: 'MySQL UNION 去重',
+  },
+  {
+    file: 'mysql_repeated_expr.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    expectRules: ['RSK-15'],
+    note: 'MySQL 重复 DATE_FORMAT 表达式',
   },
   {
     file: 'postgres_distinct_on.sql',
@@ -162,6 +199,7 @@ export const CORPUS: CorpusCase[] = [
     mode: 'structural',
     minStatements: 1,
     expectedTables: 2,
+    expectRules: ['RSK-16'],
     note: 'DM8 ROWNUM + (+) 外连接',
   },
   {

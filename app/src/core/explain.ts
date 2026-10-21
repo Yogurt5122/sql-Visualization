@@ -3,6 +3,7 @@ import { scan } from './scanner';
 import { splitStatements } from './splitter';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 import { buildMetrics, buildRelations, mergeMetrics } from './relations';
+import { runRules } from './rules';
 import { buildSemanticQuery, buildSemanticRelations, parseSemantic, summarizeSemantic } from '../parsers/semantic';
 import { preprocessMyBatis } from '../preprocess/mybatis';
 import type { MybatisVariant } from './types';
@@ -11,7 +12,6 @@ import type {
   Clause,
   Dialect,
   Explanation,
-  Issue,
   SemanticQuery,
   Statement,
 } from './types';
@@ -483,90 +483,6 @@ function buildSummary(
   return `共 ${statements.length} 条语句。第一条：${body}`;
 }
 
-function detectIssues(statement: Statement, dialect: Dialect): Issue[] {
-  const issues: Issue[] = [];
-
-  for (const clause of statement.clauses) {
-    if (clause.kind === 'select') {
-      const items = parseSelectItems(clause);
-      const hasStar = items.some(
-        (item) => item.trim() === '*' || /^[A-Za-z_]\w*\.\*$/.test(item.trim()),
-      );
-      if (hasStar) {
-        issues.push({
-          id: `RSK-01-${clause.id}`,
-          ruleId: 'RSK-01',
-          severity: 'medium',
-          title: 'SELECT * 会带出全部字段',
-          detail: '字段数量取决于表结构；如果下游依赖列顺序，表结构一变就可能出问题。',
-          clauseId: clause.id,
-          span: clause.span,
-        });
-      }
-    }
-
-    if (clause.kind === 'join' && !/\bON\b|\bUSING\b|\bCROSS\s+JOIN\b/i.test(clause.text)) {
-      issues.push({
-        id: `RSK-02-${clause.id}`,
-        ruleId: 'RSK-02',
-        severity: 'high',
-        title: 'JOIN 缺少连接条件',
-        detail: '两张表没有任何关联条件，结果行数等于两表行数相乘（笛卡尔积）。',
-        clauseId: clause.id,
-        span: clause.span,
-      });
-    }
-
-    if (clause.kind === 'where' && /\bNOT\s+IN\s*\(/i.test(clause.text)) {
-      issues.push({
-        id: `RSK-11-${clause.id}`,
-        ruleId: 'RSK-11',
-        severity: 'high',
-        title: 'NOT IN 可能因 NULL 返回空结果',
-        detail: '如果子查询结果里包含 NULL，NOT IN 的整体判断会变成 UNKNOWN，导致查不到任何行。',
-        clauseId: clause.id,
-        span: clause.span,
-      });
-    }
-  }
-
-  const hasLimit = Boolean(findClause(statement, 'limit'));
-  const hasOrder = Boolean(findClause(statement, 'orderBy'));
-  if (hasLimit && !hasOrder) {
-    const limit = findClause(statement, 'limit')!;
-    issues.push({
-      id: `RSK-13-${statement.id}`,
-      ruleId: 'RSK-13',
-      severity: 'medium',
-      title: 'LIMIT 没有 ORDER BY，取到哪几行不确定',
-      detail: '没有排序时，数据库返回的顺序不保证稳定；分页或抽样场景可能每次结果不同。',
-      clauseId: limit.id,
-      span: limit.span,
-    });
-  }
-
-  if (dialect === 'dm8') {
-    const text = statement.text;
-    if (/\bROWNUM\b/i.test(text) && hasOrder && /\bROWNUM\s*(<=|<|=)/i.test(text)) {
-      const rownumClause =
-        statement.clauses.find((clause) => /\bROWNUM\b/i.test(clause.text)) ??
-        findClause(statement, 'where');
-      issues.push({
-        id: `RSK-16-${statement.id}`,
-        ruleId: 'RSK-16',
-        severity: 'high',
-        title: 'ROWNUM 与 ORDER BY 同层，取到的不是「前 N 名」',
-        detail:
-          'DM8 会先给行编号、再排序。想取排序后的前 N 行，需要先在子查询里排序，外层再限制 ROWNUM。',
-        clauseId: rownumClause?.id,
-        span: rownumClause?.span,
-      });
-    }
-  }
-
-  return issues;
-}
-
 export interface AnalyzeOptions {
   mybatisVariant?: MybatisVariant;
 }
@@ -584,7 +500,6 @@ export function analyzeSql(
   const { tokens, errors } = scan(cleanSql);
   const statements = splitStatements(cleanSql, tokens);
   const explanations = buildExplanations(statements);
-  const issues = statements.flatMap((statement) => detectIssues(statement, guess.dialect));
   const parsed = parseSemantic(cleanSql, guess.dialect);
 
   let relations: Analysis['relations'];
@@ -608,11 +523,19 @@ export function analyzeSql(
     relations = statements.map((statement) => buildRelations(statement));
   }
 
-  const metrics = mergeMetrics(
-    statements.map((statement, index) =>
-      buildMetrics(statement, relations[index]!, semanticModels[index] ?? undefined),
-    ),
+  const statementMetrics = statements.map((statement, index) =>
+    buildMetrics(statement, relations[index]!, semanticModels[index] ?? undefined),
   );
+  const issues = statements.flatMap((statement, index) =>
+    runRules({
+      statement,
+      dialect: guess.dialect,
+      semantic: semanticModels[index] ?? null,
+      relations: relations[index]!,
+      metrics: statementMetrics[index]!,
+    }),
+  );
+  const metrics = mergeMetrics(statementMetrics);
   const summaries = statements.map((statement, index) =>
     buildSummary([statement], [semanticModels[index] ?? null]),
   );

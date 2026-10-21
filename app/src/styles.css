@@ -533,6 +533,40 @@ button {
   color: var(--muted);
 }
 
+.issue-detail {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.issue-suggestion {
+  color: #1d4ed8;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.issue-heuristic {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 9px;
+  font-weight: 400;
+  vertical-align: 1px;
+}
+
+.issue-inline-detail {
+  display: block;
+  margin-top: 2px;
+  color: #7f1d1d;
+  font-size: 10.5px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
 .severity-dot {
   flex: 0 0 auto;
   width: 8px;
