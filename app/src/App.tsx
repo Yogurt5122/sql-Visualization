@@ -8,6 +8,7 @@ import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
 import { StructureView } from './ui/StructureView';
+import { RelationsView } from './ui/RelationsView';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM dwd_order o
@@ -81,6 +82,11 @@ export default function App() {
   const handleSelectNode = (node: StructureNode) => {
     setActiveLine(node.startLine);
     requestScroll(node.startLine);
+  };
+
+  const handleSelectLine = (line: number) => {
+    setActiveLine(line);
+    requestScroll(line);
   };
 
   const handleSelectIssue = (issue: Issue) => {
@@ -203,6 +209,14 @@ export default function App() {
             </div>
           </div>
 
+          <div className="metric-strip" role="list" aria-label="结构指标">
+            <span role="listitem">表 {analysis.metrics.tables}</span>
+            <span role="listitem">JOIN {analysis.metrics.joins}</span>
+            <span role="listitem">输出 {analysis.metrics.outputs} 列</span>
+            <span role="listitem">嵌套深度 {analysis.metrics.depth}</span>
+            <span role="listitem">复杂度 {analysis.metrics.complexity}</span>
+          </div>
+
           {analysis.warnings.length > 0 && (
             <details className="warnings">
               <summary>解析提示 {analysis.warnings.length} 条</summary>
@@ -272,6 +286,13 @@ export default function App() {
               roots={structures}
               activeLine={activeLine}
               onSelect={handleSelectNode}
+            />
+          )}
+
+          {analysis.relations.length > 0 && (
+            <RelationsView
+              relations={analysis.relations}
+              onSelectLine={handleSelectLine}
             />
           )}
 

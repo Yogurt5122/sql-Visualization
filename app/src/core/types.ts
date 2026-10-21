@@ -87,12 +87,68 @@ export interface Issue {
   span?: Span;
 }
 
+export type RelationSourceKind = 'table' | 'cte' | 'subquery';
+
+export interface RelationSource {
+  id: string;
+  name: string;
+  alias?: string;
+  kind: RelationSourceKind;
+  line: number;
+}
+
+export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross' | 'unknown';
+
+export interface RelationJoin {
+  id: string;
+  from: string;
+  to: string;
+  type: JoinType;
+  condition?: string;
+  line: number;
+}
+
+export type LineageTransform =
+  | 'direct'
+  | 'aggregate'
+  | 'window'
+  | 'case'
+  | 'cast'
+  | 'function'
+  | 'literal'
+  | 'unknown';
+
+export interface LineageRow {
+  id: string;
+  output: string;
+  source: string;
+  transform: LineageTransform;
+  line: number;
+  confidence: 'exact' | 'partial' | 'unknown';
+}
+
+export interface Relations {
+  sources: RelationSource[];
+  joins: RelationJoin[];
+  lineage: LineageRow[];
+}
+
+export interface AnalysisMetrics {
+  tables: number;
+  joins: number;
+  outputs: number;
+  depth: number;
+  complexity: number;
+}
+
 export interface Analysis {
   dialect: ResolvedDialect;
   confidence: number;
   statements: Statement[];
   explanations: Explanation[];
   issues: Issue[];
+  relations: Relations[];
+  metrics: AnalysisMetrics;
   summary: string;
   warnings: string[];
   mode: 'structural';

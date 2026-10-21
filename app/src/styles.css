@@ -284,6 +284,21 @@ button {
   color: var(--muted);
 }
 
+.metric-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metric-strip span {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .warnings {
   border: 1px solid #fde68a;
   border-radius: 9px;
@@ -719,6 +734,255 @@ button {
   color: #94a3b8;
   font-size: 10px;
   white-space: nowrap;
+}
+
+/* ---------- 数据关系 ---------- */
+.relations-section {
+  margin-top: 2px;
+}
+
+.relations-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 2px 2px 6px;
+}
+
+.relations-head h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.relations-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.relations-tabs button {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.relations-tabs button.is-active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.relations-tabs button span {
+  margin-left: 2px;
+  color: #94a3b8;
+}
+
+.relations-note {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.relations-empty {
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.relation-graph-wrap {
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.relation-graph {
+  display: block;
+  width: 100%;
+  min-width: 520px;
+  height: auto;
+}
+
+.rel-node {
+  cursor: pointer;
+}
+
+.rel-node rect {
+  fill: #fff;
+  stroke: #cbd5e1;
+  stroke-width: 1;
+}
+
+.rel-node:hover rect,
+.rel-node:focus-visible rect {
+  stroke: #93c5fd;
+  stroke-width: 2;
+}
+
+.rel-node-table rect {
+  stroke: #bfdbfe;
+}
+
+.rel-node-cte rect {
+  stroke: #e9d5ff;
+}
+
+.rel-node-subquery rect {
+  stroke: #bae6fd;
+}
+
+.rel-node-name {
+  fill: #0f172a;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rel-node-meta {
+  fill: #64748b;
+  font-size: 9.5px;
+}
+
+.rel-edge {
+  cursor: pointer;
+}
+
+.rel-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.rel-edge-line {
+  fill: none;
+  stroke: #94a3b8;
+  stroke-width: 1.4;
+}
+
+.rel-edge-inner .rel-edge-line {
+  stroke: #2563eb;
+}
+
+.rel-edge-left .rel-edge-line,
+.rel-edge-right .rel-edge-line,
+.rel-edge-full .rel-edge-line {
+  stroke: #0891b2;
+  stroke-dasharray: 4 3;
+}
+
+.rel-edge-cross .rel-edge-line,
+.rel-edge-unknown .rel-edge-line {
+  stroke: #dc2626;
+  stroke-dasharray: 3 3;
+}
+
+.rel-edge-label {
+  fill: #64748b;
+  font-size: 9px;
+}
+
+.relation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 2px 2px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.relation-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 0;
+  margin-right: 4px;
+  border-top: 2px solid #94a3b8;
+  vertical-align: middle;
+}
+
+.legend-inner::before {
+  border-color: #2563eb !important;
+}
+
+.legend-left::before {
+  border-color: #0891b2 !important;
+  border-top-style: dashed !important;
+}
+
+.legend-cross::before {
+  border-color: #dc2626 !important;
+  border-top-style: dashed !important;
+}
+
+.lineage-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.lineage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.lineage-table th {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.lineage-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.lineage-table tr:last-child td {
+  border-bottom: none;
+}
+
+.lineage-row {
+  cursor: pointer;
+}
+
+.lineage-row:hover {
+  background: #f8fafc;
+}
+
+.lineage-output {
+  color: #0f172a;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.lineage-source {
+  color: #1d4ed8;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.lineage-line {
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.lineage-partial .lineage-source {
+  color: #b45309;
+}
+
+.lineage-unknown .lineage-source {
+  color: #94a3b8;
 }
 
 /* ---------- 逐句解释 ---------- */

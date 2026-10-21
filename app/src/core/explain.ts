@@ -2,6 +2,7 @@ import { resolveDialect } from './dialects';
 import { scan } from './scanner';
 import { splitStatements } from './splitter';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
+import { buildMetrics, buildRelations, mergeMetrics } from './relations';
 import type {
   Analysis,
   Clause,
@@ -557,6 +558,10 @@ export function analyzeSql(sql: string, selectedDialect: Dialect = 'auto'): Anal
   const statements = splitStatements(sql, tokens);
   const explanations = buildExplanations(statements);
   const issues = statements.flatMap((statement) => detectIssues(statement, guess.dialect));
+  const relations = statements.map((statement) => buildRelations(statement));
+  const metrics = mergeMetrics(
+    statements.map((statement, index) => buildMetrics(statement, relations[index]!)),
+  );
   const summary = buildSummary(statements);
 
   const warnings = errors.map(
@@ -572,6 +577,8 @@ export function analyzeSql(sql: string, selectedDialect: Dialect = 'auto'): Anal
     statements,
     explanations,
     issues,
+    relations,
+    metrics,
     summary,
     warnings,
     mode: 'structural',
