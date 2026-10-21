@@ -8,8 +8,8 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.3.1**：M2 基本补齐（语义 AST + MyBatis 容错），M3 的表关系 / 血缘 / 指标已上线。
-> Web Worker、完整 17 条规则、导出待补。
+> 当前 **0.3.2**：M2 完成（语义 AST、MyBatis 容错、Web Worker），M3 的表关系 / 血缘 / 指标已上线。
+> 下一步：AST 驱动的总结与结构树展开、完整 17 条规则、导出。
 
 ---
 
@@ -62,6 +62,7 @@
 | 四方言识别 | MySQL / SQL Server / PostgreSQL / DM8，按特征打分，可手动切换 |
 | 语义解析 | MySQL / PostgreSQL / SQL Server 走 AST；解析失败自动回退结构模式，并提示出错行号 |
 | MyBatis 容错 | 识别 8 个常用标签，等长替换保行号，支持「全保留 / 全去掉」两个变体；`#{}` 转占位符 |
+| Web Worker | 解析在 Worker 中执行，260 ms 防抖、可取消；Worker 失败自动回主线程兜底 |
 | 语句与子句切分 | 顶层 `;` 切语句；`SELECT / FROM / JOIN / WHERE / GROUP BY / HAVING / ORDER BY / LIMIT` 等切子句；字符串、注释、括号内的关键字不误切 |
 | 子句色条 | 编辑器左侧按语义上色，结构在文本里就能看见 |
 | 执行流程 | 按 `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT` 的真实求值顺序展示，点击阶段定位原文 |
@@ -256,7 +257,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库，首屏 JS 约 703 KB gzip（含 SQL 解析器）。
+- 不加载 Web Font、不引 UI 组件库，主包约 704 KB gzip，Worker 解析包约 508 KB gzip。
 
 ### 7.9 设计规范（实现依据）
 
@@ -284,7 +285,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **数据关系**：位于结构树下方、逐句解释上方；两个页签「表关系 / 字段血缘」。表关系用轻量 SVG：节点 = 表 / CTE / 子查询，边 = 连接类型与条件，点击节点或边跳转原文；字段血缘用表格：输出列 / 来源 / 变换 / 行号，点击行跳转原文。
 
-**语义状态与 MyBatis**：编辑器底部显示「语义模式 / 结构模式」；检测到 MyBatis 标签时，在总结卡下方显示蓝色提示条与「全保留 / 全去掉」切换。
+**语义状态与 MyBatis**：编辑器底部显示「语义模式 / 结构模式」，Worker 返回时追加 `· Worker`；分析中显示阶段文案和「取消」。检测到 MyBatis 标签时，在总结卡下方显示蓝色提示条与「全保留 / 全去掉」切换。
 
 ## 8. 路线图
 
@@ -292,7 +293,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | --- | --- | --- | --- |
 | M0 | 设计 | 需求、技术方案、交互、路线图 | ✅ |
 | M1 | 最小闭环 | 分句、上色、逐句解释、双向定位 | ✅ v0.1.0 |
-| M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | 基本完成（AST、MyBatis；Worker 待补） |
+| M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、导出、DM8 `(+)` | 进行中（表关系、血缘、指标已上线） |
 | M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 计划 |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |

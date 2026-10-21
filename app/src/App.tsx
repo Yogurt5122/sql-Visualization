@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { analyzeSql } from './core/explain';
 import { buildFlow, type FlowStep } from './core/flow';
 import { buildStructure, type StructureNode } from './core/structure';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
 import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
+import { useAnalysis } from './hooks/useAnalysis';
 import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
@@ -54,9 +54,10 @@ export default function App() {
     null,
   );
 
-  const analysis = useMemo(
-    () => analyzeSql(sql, dialect, { mybatisVariant }),
-    [sql, dialect, mybatisVariant],
+  const { analysis, status, runtime, phase, cancel } = useAnalysis(
+    sql,
+    dialect,
+    mybatisVariant,
   );
   const clauses = useMemo(
     () => analysis.statements.flatMap((statement) => statement.clauses),
@@ -197,7 +198,18 @@ export default function App() {
               {Math.round(analysis.confidence * 100)}% 置信
             </span>
             <span className="muted">
-              {analysis.mode === 'semantic' ? '语义模式' : '结构模式'}
+              {status === 'analyzing' ? (
+                <span className="analysis-status">
+                  {phase ?? '分析中'}…
+                  <button type="button" onClick={cancel}>
+                    取消
+                  </button>
+                </span>
+              ) : analysis.mode === 'semantic' ? (
+                <>语义模式{runtime === 'worker' ? ' · Worker' : ''}</>
+              ) : (
+                <>结构模式{runtime === 'worker' ? ' · Worker' : ''}</>
+              )}
             </span>
           </div>
         </section>
@@ -376,7 +388,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.1
+          左侧色条对应子句 · 点击行可定位 · v0.3.2
         </span>
       </footer>
     </div>
