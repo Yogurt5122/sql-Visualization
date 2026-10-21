@@ -151,6 +151,41 @@ export interface PreprocessInfo {
   warnings: string[];
 }
 
+export interface SemanticClause {
+  kind: Clause['kind'];
+  label: string;
+  startLine: number;
+  endLine: number;
+  text: string;
+  hasTable: boolean;
+}
+
+export interface SemanticCte {
+  name: string;
+  tables: string[];
+  query: SemanticQuery;
+}
+
+export interface SemanticQuery {
+  id: string;
+  kind: 'main' | 'cte' | 'subquery';
+  name?: string;
+  startLine: number;
+  endLine: number;
+  sources: RelationSource[];
+  joins: number;
+  whereCount: number;
+  hasHaving: boolean;
+  groupBy: string[];
+  orderBy: string[];
+  limit?: string;
+  outputCount: number;
+  tables: string[];
+  clauses: SemanticClause[];
+  ctes: SemanticCte[];
+  subqueries: SemanticQuery[];
+}
+
 export interface Analysis {
   dialect: ResolvedDialect;
   confidence: number;
@@ -159,6 +194,7 @@ export interface Analysis {
   issues: Issue[];
   relations: Relations[];
   metrics: AnalysisMetrics;
+  semantic: Array<SemanticQuery | null>;
   summary: string;
   warnings: string[];
   mode: 'semantic' | 'structural';

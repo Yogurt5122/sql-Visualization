@@ -3,7 +3,7 @@ import { scan } from './scanner';
 import { splitStatements } from './splitter';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 import { buildMetrics, buildRelations, mergeMetrics } from './relations';
-import { buildSemanticRelations, parseSemantic } from '../parsers/semantic';
+import { buildSemanticQuery, buildSemanticRelations, parseSemantic, summarizeSemantic } from '../parsers/semantic';
 import { preprocessMyBatis } from '../preprocess/mybatis';
 import type { MybatisVariant } from './types';
 import type {
@@ -12,6 +12,7 @@ import type {
   Dialect,
   Explanation,
   Issue,
+  SemanticQuery,
   Statement,
 } from './types';
 
@@ -419,8 +420,19 @@ function findClause(statement: Statement, kind: Clause['kind']): Clause | undefi
   return statement.clauses.find((clause) => clause.kind === kind);
 }
 
-function buildSummary(statements: Statement[]): string {
+function buildSummary(
+  statements: Statement[],
+  semantics?: Array<SemanticQuery | null>,
+): string {
   if (statements.length === 0) return '还没有可分析的 SQL。';
+
+  const semantic = semantics?.[0];
+  if (semantic) {
+    const body = summarizeSemantic(semantic);
+    return statements.length === 1
+      ? body
+      : `共 ${statements.length} 条语句。第一条：${body}`;
+  }
 
   const first = statements[0]!;
   const parts: string[] = [];
@@ -573,18 +585,23 @@ export function analyzeSql(
   const statements = splitStatements(cleanSql, tokens);
   const explanations = buildExplanations(statements);
   const issues = statements.flatMap((statement) => detectIssues(statement, guess.dialect));
-  const semantic = parseSemantic(cleanSql, guess.dialect);
+  const parsed = parseSemantic(cleanSql, guess.dialect);
 
   let relations: Analysis['relations'];
+  let semanticModels: Analysis['semantic'] = statements.map(() => null);
   let mode: Analysis['mode'] = 'structural';
 
-  if (semantic.ok && semantic.ast) {
-    const astList = Array.isArray(semantic.ast) ? semantic.ast : [semantic.ast];
+  if (parsed.ok && parsed.ast) {
+    const astList = Array.isArray(parsed.ast) ? parsed.ast : [parsed.ast];
     relations = statements.map((statement, index) => {
       const ast = astList[index] ?? astList[0];
       return ast
         ? buildSemanticRelations(cleanSql, ast, statement.id)
         : buildRelations(statement);
+    });
+    semanticModels = statements.map((statement, index) => {
+      const ast = astList[index] ?? astList[0];
+      return ast ? buildSemanticQuery(cleanSql, ast, statement.id) : null;
     });
     mode = 'semantic';
   } else {
@@ -592,9 +609,11 @@ export function analyzeSql(
   }
 
   const metrics = mergeMetrics(
-    statements.map((statement, index) => buildMetrics(statement, relations[index]!)),
+    statements.map((statement, index) =>
+      buildMetrics(statement, relations[index]!, semanticModels[index] ?? undefined),
+    ),
   );
-  const summary = buildSummary(statements);
+  const summary = buildSummary(statements, semanticModels);
 
   const warnings = [
     ...preprocess.warnings,
@@ -604,8 +623,7 @@ export function analyzeSql(
     warnings.push('没有识别到可分析的 SQL 语句。');
   }
 
-  const parseError =
-    !semantic.ok && guess.dialect !== 'dm8' ? semantic.error : undefined;
+  const parseError = !parsed.ok && guess.dialect !== 'dm8' ? parsed.error : undefined;
 
   return {
     dialect: guess.dialect,
@@ -615,6 +633,7 @@ export function analyzeSql(
     issues,
     relations,
     metrics,
+    semantic: semanticModels,
     summary,
     warnings,
     mode,

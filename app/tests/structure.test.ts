@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { analyzeSql } from '../src/core/explain';
 import { buildStructure, filterStructure, findActiveNode } from '../src/core/structure';
 import type { StructureNode } from '../src/core/structure';
 import { scan } from '../src/core/scanner';
@@ -98,5 +99,42 @@ SELECT * FROM base`);
     expect(labels).toContain('FROM');
     expect(labels).toContain('JOIN');
     expect(labels).not.toContain('LIMIT');
+  });
+
+  it('CTE 内部子句会被展开', () => {
+    const sql = `WITH base AS (
+  SELECT id, amount FROM t WHERE amount > 0
+)
+SELECT * FROM base`;
+    const analysis = analyzeSql(sql, 'mysql');
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const withNode = root.children.find((child) => child.label === 'WITH')!;
+    const cte = withNode.children.find((child) => child.label === 'base')!;
+
+    expect(cte.children.map((child) => child.label)).toEqual([
+      'SELECT',
+      'FROM',
+      'WHERE',
+    ]);
+    expect(cte.children[0]?.startLine).toBe(2);
+  });
+
+  it('子查询内部子句会被展开', () => {
+    const sql = `SELECT * FROM (
+  SELECT id FROM t WHERE id > 0
+) s`;
+    const analysis = analyzeSql(sql, 'mysql');
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const from = root.children[0]!.children.find(
+      (child) => child.label === 'FROM',
+    )!;
+    const subquery = from.children[0]!;
+
+    expect(subquery.label).toBe('#1');
+    expect(subquery.children.map((child) => child.label)).toEqual([
+      'SELECT',
+      'FROM',
+      'WHERE',
+    ]);
   });
 });

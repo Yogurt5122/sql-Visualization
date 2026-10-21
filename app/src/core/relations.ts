@@ -6,6 +6,7 @@ import type {
   RelationJoin,
   RelationSource,
   Relations,
+  SemanticQuery,
   Statement,
 } from './types';
 import { scan } from './scanner';
@@ -334,7 +335,11 @@ export function buildRelations(statement: Statement): Relations {
   };
 }
 
-export function buildMetrics(statement: Statement, relations: Relations): AnalysisMetrics {
+export function buildMetrics(
+  statement: Statement,
+  relations: Relations,
+  semantic?: SemanticQuery,
+): AnalysisMetrics {
   const text = statement.text;
   const { tokens } = scan(text);
   const depth = tokens.reduce((max, token) => {
@@ -350,9 +355,21 @@ export function buildMetrics(statement: Statement, relations: Relations): Analys
   const ctes = new Set(
     relations.sources.filter((source) => source.kind === 'cte').map((source) => source.name),
   ).size;
-  const tables = new Set(
-    relations.sources.filter((source) => source.kind === 'table').map((source) => source.name),
-  ).size;
+  const semanticTables = new Set<string>();
+  if (semantic) {
+    for (const table of semantic.tables) semanticTables.add(table.toLowerCase());
+    for (const cte of semantic.ctes) {
+      for (const table of cte.tables) semanticTables.add(table.toLowerCase());
+    }
+  }
+  const tables =
+    semanticTables.size > 0
+      ? semanticTables.size
+      : new Set(
+          relations.sources
+            .filter((source) => source.kind === 'table')
+            .map((source) => source.name.toLowerCase()),
+        ).size;
   const unions = (text.match(/\b(UNION|INTERSECT|EXCEPT|MINUS)\b/gi) ?? []).length;
   const cases = (text.match(/\bCASE\b/gi) ?? []).length;
   const windows = (text.match(/\bOVER\s*\(/gi) ?? []).length;

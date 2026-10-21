@@ -54,4 +54,24 @@ GROUP BY base.id`,
     expect(analysis.mode).toBe('structural');
     expect(analysis.parseError).toBeUndefined();
   });
+
+  it('总结会展开 CTE 的底层表', () => {
+    const analysis = analyzeSql(
+      `WITH base AS (
+  SELECT id, amount FROM t WHERE amount > 0
+)
+SELECT b.id, SUM(b.amount) AS total
+FROM base b
+WHERE b.id > 0
+GROUP BY b.id
+ORDER BY total DESC
+LIMIT 10`,
+      'mysql',
+    );
+    expect(analysis.summary).toContain('CTE');
+    expect(analysis.summary).toContain('base');
+    expect(analysis.summary).toContain('t');
+    expect(analysis.summary).toContain('取前 10 行');
+    expect(analysis.metrics.tables).toBe(1);
+  });
 });

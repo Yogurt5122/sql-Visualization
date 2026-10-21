@@ -1,4 +1,4 @@
-import type { Clause, Statement } from './types';
+import type { Clause, SemanticQuery, Statement } from './types';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 
 export type StructureKind = 'statement' | 'query' | 'clause' | 'subquery' | 'cte';
@@ -114,10 +114,25 @@ function textHasRef(text: string, refs: string[]): boolean {
   });
 }
 
+function semanticClauseNodes(query: SemanticQuery): StructureNode[] {
+  return query.clauses.map((clause, index) => ({
+    id: `${query.id}-clause-${index + 1}`,
+    kind: 'clause',
+    label: clause.label,
+    badge: '子句',
+    startLine: clause.startLine,
+    endLine: clause.endLine,
+    searchText: clause.text,
+    hasTable: clause.hasTable,
+    children: [],
+  }));
+}
+
 function buildSubqueries(
   clause: Clause,
   refs: string[],
   counter: { count: number },
+  semantic?: SemanticQuery,
 ): StructureNode[] {
   const nodes: StructureNode[] = [];
   const pattern = /\(\s*SELECT\b/gi;
@@ -130,6 +145,7 @@ function buildSubqueries(
 
     const text = clause.text.slice(open, close + 1);
     counter.count += 1;
+    const inner = semantic?.subqueries[counter.count - 1];
 
     nodes.push({
       id: `${clause.id}-sub-${counter.count}`,
@@ -140,7 +156,7 @@ function buildSubqueries(
       endLine: lineAt(clause.span.startLine, clause.text, close + 1),
       searchText: text,
       hasTable: textHasRef(text, refs),
-      children: [],
+      children: inner ? semanticClauseNodes(inner) : [],
     });
 
     pattern.lastIndex = close + 1;
@@ -149,7 +165,11 @@ function buildSubqueries(
   return nodes;
 }
 
-function buildCtes(clause: Clause, refs: string[]): StructureNode[] {
+function buildCtes(
+  clause: Clause,
+  refs: string[],
+  semantic?: SemanticQuery,
+): StructureNode[] {
   const nodes: StructureNode[] = [];
   const pattern = /\b([A-Za-z_]\w*)\s+AS\s*\(/gi;
   let match: RegExpExecArray | null;
@@ -163,6 +183,9 @@ function buildCtes(clause: Clause, refs: string[]): StructureNode[] {
     const name = match[1]!;
     const text = clause.text.slice(open, close + 1);
     index += 1;
+    const inner = semantic?.ctes.find(
+      (cte) => cte.name.toLowerCase() === name.toLowerCase(),
+    );
 
     nodes.push({
       id: `${clause.id}-cte-${index}-${name.toLowerCase()}`,
@@ -173,7 +196,7 @@ function buildCtes(clause: Clause, refs: string[]): StructureNode[] {
       endLine: lineAt(clause.span.startLine, clause.text, close + 1),
       searchText: `${name} ${text}`,
       hasTable: textHasRef(text, refs),
-      children: [],
+      children: inner ? semanticClauseNodes(inner.query) : [],
     });
 
     pattern.lastIndex = close + 1;
@@ -186,6 +209,7 @@ function buildClauseNode(
   clause: Clause,
   refs: string[],
   counter: { count: number },
+  semantic?: SemanticQuery,
 ): StructureNode {
   const canContainSubquery =
     clause.kind === 'from' ||
@@ -195,7 +219,7 @@ function buildClauseNode(
     clause.kind === 'select';
 
   const children = canContainSubquery
-    ? buildSubqueries(clause, refs, counter)
+    ? buildSubqueries(clause, refs, counter, semantic)
     : [];
 
   return {
@@ -211,7 +235,10 @@ function buildClauseNode(
   };
 }
 
-export function buildStructure(statement: Statement): StructureNode {
+export function buildStructure(
+  statement: Statement,
+  semantic?: SemanticQuery,
+): StructureNode {
   const refs = extractTableRefs(statement);
   const counter = { count: 0 };
   const clauses = [...statement.clauses].sort(
@@ -233,7 +260,7 @@ export function buildStructure(statement: Statement): StructureNode {
   };
 
   if (withClause) {
-    const ctes = buildCtes(withClause, refs);
+    const ctes = buildCtes(withClause, refs, semantic);
     root.children.push({
       id: withClause.id,
       kind: 'clause',
@@ -263,7 +290,9 @@ export function buildStructure(statement: Statement): StructureNode {
     endLine: queryEnd,
     searchText: '',
     hasTable: false,
-    children: mainClauses.map((clause) => buildClauseNode(clause, refs, counter)),
+    children: mainClauses.map((clause) =>
+      buildClauseNode(clause, refs, counter, semantic),
+    ),
   };
   query.hasTable = query.children.some((child) => child.hasTable);
   root.children.push(query);

@@ -7,6 +7,9 @@ import type {
   RelationSource,
   Relations,
   ResolvedDialect,
+  SemanticClause,
+  SemanticCte,
+  SemanticQuery,
 } from '../core/types';
 
 const parser = new Parser();
@@ -71,9 +74,19 @@ interface AstNode {
   expr?: AstNode;
   ast?: AstNode;
   columns?: AstNode[];
+  from?: AstNode[];
   name?: string | { value?: string };
   args?: unknown;
   over?: unknown;
+  operator?: string;
+  left?: AstNode;
+  right?: AstNode;
+  where?: AstNode;
+  having?: AstNode;
+  groupby?: { columns?: AstNode[] };
+  orderby?: Array<{ expr?: AstNode; type?: string }>;
+  limit?: { value?: Array<{ value?: unknown }> };
+  with?: Array<{ name?: AstNode['name']; stmt?: { ast?: AstNode } }>;
   [key: string]: unknown;
 }
 
@@ -329,4 +342,295 @@ export function buildSemanticRelations(
 function compact(text: string, max: number): string {
   const value = text.replace(/\s+/g, ' ').trim();
   return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+function textOf(sql: string, node: AstNode | undefined): string {
+  const start = node?.loc?.start?.offset;
+  const end = node?.loc?.end?.offset;
+  if (typeof start === 'number' && typeof end === 'number') {
+    return sql.slice(start, end).trim();
+  }
+  return '';
+}
+
+function lineOf(node: AstNode | undefined): number {
+  return node?.loc?.start?.line ?? 1;
+}
+
+function endLineOf(node: AstNode | undefined): number {
+  return node?.loc?.end?.line ?? lineOf(node);
+}
+
+function columnLabel(sql: string, node: AstNode | undefined): string {
+  if (!node) return '表达式';
+  if (node.type === 'column_ref') {
+    return node.table ? `${node.table}.${String(node.column)}` : String(node.column);
+  }
+  return textOf(sql, node) || node.type || '表达式';
+}
+
+function countPredicates(node: AstNode | undefined): number {
+  if (!node) return 0;
+  const operator = String(node.operator ?? '').toUpperCase();
+  if (node.type === 'binary_expr' && (operator === 'AND' || operator === 'OR')) {
+    return countPredicates(node.left) + countPredicates(node.right);
+  }
+  return 1;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildSemanticClauses(
+  sql: string,
+  root: AstNode,
+  tables: string[],
+): SemanticClause[] {
+  const clauses: SemanticClause[] = [];
+  const tablePatterns = tables.map(
+    (table) => new RegExp(`\\b${escapeRegExp(table)}\\b`, 'i'),
+  );
+  const containsTable = (text: string) =>
+    tablePatterns.some((pattern) => pattern.test(text));
+
+  const push = (
+    kind: SemanticClause['kind'],
+    label: string,
+    startNode: AstNode | undefined,
+    endNode: AstNode | undefined,
+    text: string,
+    forceTable = false,
+  ) => {
+    if (!startNode) return;
+    clauses.push({
+      kind,
+      label,
+      startLine: lineOf(startNode),
+      endLine: endLineOf(endNode ?? startNode),
+      text,
+      hasTable: forceTable || containsTable(text),
+    });
+  };
+
+  const columns = root.columns ?? [];
+  if (columns.length > 0) {
+    const text = columns
+      .map((column) => textOf(sql, column.expr) || aliasOf(column.as) || '')
+      .filter(Boolean)
+      .join(', ');
+    push(
+      'select',
+      'SELECT',
+      columns[0]!.expr,
+      columns[columns.length - 1]!.expr,
+      text || textOf(sql, root),
+    );
+  }
+
+  const fromItems = root.from ?? [];
+  const base = fromItems.find((item) => !item.join) ?? fromItems[0];
+  if (base) {
+    push('from', 'FROM', base, base, textOf(sql, base), true);
+  }
+
+  for (const item of fromItems) {
+    if (!item.join) continue;
+    const end = item.on ?? item;
+    const condition = item.on ? ` ON ${textOf(sql, item.on)}` : '';
+    push('join', 'JOIN', item, end, `${textOf(sql, item)}${condition}`.trim(), true);
+  }
+
+  if (root.where) {
+    push('where', 'WHERE', root.where, root.where, textOf(sql, root.where));
+  }
+
+  const groupColumns = root.groupby?.columns ?? [];
+  if (groupColumns.length > 0) {
+    push(
+      'groupBy',
+      'GROUP BY',
+      groupColumns[0],
+      groupColumns[groupColumns.length - 1],
+      groupColumns.map((column) => columnLabel(sql, column)).join(', '),
+    );
+  }
+
+  if (root.having) {
+    push('having', 'HAVING', root.having, root.having, textOf(sql, root.having));
+  }
+
+  const orderItems = root.orderby ?? [];
+  if (orderItems.length > 0) {
+    const text = orderItems
+      .map((item) => `${columnLabel(sql, item.expr)}${item.type === 'DESC' ? ' DESC' : ' ASC'}`)
+      .join(', ');
+    push(
+      'orderBy',
+      'ORDER BY',
+      orderItems[0]?.expr,
+      orderItems[orderItems.length - 1]?.expr,
+      text,
+    );
+  }
+
+  if (root.limit) {
+    push('limit', 'LIMIT', root.limit, root.limit, textOf(sql, root.limit));
+  }
+
+  return clauses;
+}
+
+export function buildSemanticQuery(
+  sql: string,
+  ast: unknown,
+  idPrefix: string,
+  kind: 'main' | 'cte' | 'subquery' = 'main',
+  name?: string,
+): SemanticQuery {
+  const root = (ast ?? {}) as AstNode;
+  const startLine = lineOf(root);
+  const endLine = endLineOf(root);
+
+  const ctes: SemanticCte[] = [];
+  if (kind === 'main' && Array.isArray(root.with)) {
+    root.with.forEach((cte, index) => {
+      const cteName = nameOf(cte.name) ?? `cte_${index + 1}`;
+      const body = cte.stmt?.ast;
+      if (!body) return;
+      const query = buildSemanticQuery(
+        sql,
+        body,
+        `${idPrefix}-cte-${index + 1}`,
+        'cte',
+        cteName,
+      );
+      ctes.push({ name: cteName, tables: query.tables, query });
+    });
+  }
+
+  const cteNames = new Set(ctes.map((cte) => cte.name.toLowerCase()));
+  const sources: RelationSource[] = [];
+  const subqueries: SemanticQuery[] = [];
+  const fromItems = root.from ?? [];
+
+  fromItems.forEach((item, index) => {
+    const alias = aliasOf(item.as);
+    const line = lineOf(item);
+    let nested: AstNode | undefined;
+
+    if (typeof item.table === 'string') {
+      sources.push({
+        id: `${idPrefix}-sem-src-${index + 1}`,
+        name: item.table,
+        alias,
+        kind: cteNames.has(item.table.toLowerCase()) ? 'cte' : 'table',
+        line,
+      });
+      return;
+    }
+
+    if (item.expr?.ast) nested = item.expr.ast;
+    else if (item.table && typeof item.table === 'object') nested = item.table;
+
+    if (!nested) return;
+    sources.push({
+      id: `${idPrefix}-sem-src-${index + 1}`,
+      name: '子查询',
+      alias,
+      kind: 'subquery',
+      line,
+    });
+    subqueries.push(
+      buildSemanticQuery(
+        sql,
+        nested,
+        `${idPrefix}-sub-${subqueries.length + 1}`,
+        'subquery',
+        alias,
+      ),
+    );
+  });
+
+  const tables = [
+    ...new Set(
+      sources
+        .filter((source) => source.kind === 'table')
+        .map((source) => source.name),
+    ),
+  ];
+  const limitValue = root.limit?.value?.[0]?.value;
+
+  return {
+    id: idPrefix,
+    kind,
+    name,
+    startLine,
+    endLine,
+    sources,
+    joins: fromItems.filter((item) => item.join).length,
+    whereCount: countPredicates(root.where),
+    hasHaving: Boolean(root.having),
+    groupBy: (root.groupby?.columns ?? []).map((column) =>
+      columnLabel(sql, column),
+    ),
+    orderBy: (root.orderby ?? []).map((item) => {
+      const label = columnLabel(sql, item.expr);
+      return `${label}${item.type === 'DESC' ? ' 降序' : ' 升序'}`;
+    }),
+    limit: limitValue != null ? String(limitValue) : undefined,
+    outputCount: root.columns?.length ?? 0,
+    tables,
+    clauses: buildSemanticClauses(sql, root, tables),
+    ctes,
+    subqueries,
+  };
+}
+
+export function summarizeSemantic(query: SemanticQuery): string {
+  const parts: string[] = [];
+
+  if (query.ctes.length > 0) {
+    const list = query.ctes.map(
+      (cte) =>
+        `${cte.name} ← ${cte.tables.length > 0 ? cte.tables.join('/') : '子查询'}`,
+    );
+    parts.push(`先定义 ${query.ctes.length} 个 CTE（${list.join('、')}）`);
+  }
+
+  const [main, ...related] = query.sources;
+  if (main) {
+    parts.push(
+      `从 ${main.alias ? `${main.name}（别名 ${main.alias}）` : main.name} 取数`,
+    );
+  }
+  if (related.length > 0) {
+    parts.push(
+      `关联 ${related
+        .map((source) =>
+          source.alias ? `${source.name}（别名 ${source.alias}）` : source.name,
+        )
+        .join('、')}`,
+    );
+  }
+  if (query.whereCount > 0) {
+    parts.push(`只看 ${query.whereCount} 个条件`);
+  }
+  if (query.groupBy.length > 0) {
+    parts.push(`按 ${query.groupBy.join('、')} 分组`);
+  }
+  if (query.hasHaving) {
+    parts.push('分组后再筛');
+  }
+  if (query.outputCount > 0) {
+    parts.push(`输出 ${query.outputCount} 列`);
+  }
+  if (query.orderBy.length > 0) {
+    parts.push(`按 ${query.orderBy.join('、')}`);
+  }
+  if (query.limit) {
+    parts.push(`取前 ${query.limit} 行`);
+  }
+
+  return parts.length > 0 ? `${parts.join('，')}。` : '没有识别出可解释的子句。';
 }

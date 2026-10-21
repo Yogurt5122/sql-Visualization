@@ -36,11 +36,23 @@ const SAMPLE_MYBATIS = `<select id="queryUser" resultType="User">
   ORDER BY u.id DESC
 </select>`;
 
+const SAMPLE_CTE = `WITH base AS (
+  SELECT id, amount
+  FROM dwd_order
+  WHERE amount > 0
+)
+SELECT b.id, b.amount
+FROM base b
+WHERE b.amount > 100
+ORDER BY b.amount DESC
+LIMIT 50`;
+
 let scrollNonce = 0;
 
 function initialSql(): string {
   const sample = new URLSearchParams(window.location.search).get('sample');
   if (sample === 'mybatis') return SAMPLE_MYBATIS;
+  if (sample === 'cte') return SAMPLE_CTE;
   if (sample === 'dm8') return SAMPLE_DM8;
   return SAMPLE_MYSQL;
 }
@@ -73,7 +85,10 @@ export default function App() {
   );
   const allSteps = useMemo(() => flows.flatMap((flow) => flow.steps), [flows]);
   const structures = useMemo(
-    () => analysis.statements.map((statement) => buildStructure(statement)),
+    () =>
+      analysis.statements.map((statement, index) =>
+        buildStructure(statement, analysis.semantic[index] ?? undefined),
+      ),
     [analysis],
   );
 
@@ -388,7 +403,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.2
+          左侧色条对应子句 · 点击行可定位 · v0.3.3
         </span>
       </footer>
     </div>
