@@ -8,6 +8,7 @@ import type {
 
 export interface RelationsViewProps {
   relations: Relations[];
+  statementIndex: number;
   onSelectLine: (line: number) => void;
 }
 
@@ -162,6 +163,7 @@ function LineageTable({
             <th>输出列</th>
             <th>来源</th>
             <th>变换</th>
+            <th>经过</th>
             <th>行</th>
           </tr>
         </thead>
@@ -179,6 +181,9 @@ function LineageTable({
               <td className="lineage-output">{row.output}</td>
               <td className="lineage-source">{row.source}</td>
               <td>{TRANSFORM_LABEL[row.transform]}</td>
+              <td className="lineage-via">
+                {row.via && row.via.length > 0 ? row.via.join(' → ') : '—'}
+              </td>
               <td className="lineage-line">L{row.line}</td>
             </tr>
           ))}
@@ -188,17 +193,22 @@ function LineageTable({
   );
 }
 
-export function RelationsView({ relations, onSelectLine }: RelationsViewProps) {
+export function RelationsView({
+  relations,
+  statementIndex,
+  onSelectLine,
+}: RelationsViewProps) {
   const [tab, setTab] = useState<'graph' | 'lineage'>('graph');
 
   if (relations.length === 0) return null;
-  const current = relations[0]!;
+  const current = relations[statementIndex] ?? relations[0]!;
 
   return (
     <section className="relations-section" aria-label="数据关系">
       <div className="relations-head">
         <h2>数据关系</h2>
         <span className="muted">
+          {relations.length > 1 ? `第 ${statementIndex + 1} 条 · ` : ''}
           {current.sources.length} 个数据源 · {current.joins.length} 个连接 ·{' '}
           {current.lineage.length} 个输出列
         </span>
@@ -224,10 +234,6 @@ export function RelationsView({ relations, onSelectLine }: RelationsViewProps) {
           字段血缘 <span>{current.lineage.length}</span>
         </button>
       </div>
-
-      {relations.length > 1 && (
-        <p className="relations-note">多语句暂只展示第 1 条语句。</p>
-      )}
 
       {tab === 'graph' ? (
         <RelationGraph relations={current} onSelectLine={onSelectLine} />

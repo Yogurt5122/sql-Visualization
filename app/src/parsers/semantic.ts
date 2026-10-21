@@ -73,6 +73,7 @@ interface AstNode {
   on?: AstNode;
   expr?: AstNode;
   ast?: AstNode;
+  stmt?: { ast?: AstNode };
   columns?: AstNode[];
   from?: AstNode[];
   name?: string | { value?: string };
@@ -196,11 +197,15 @@ export function buildSemanticRelations(
   const byKey = new Map<string, RelationSource>();
   const joins: RelationJoin[] = [];
   const cteNames = new Set<string>();
+  const cteMap = new Map<string, AstNode>();
 
   if (Array.isArray(root.with)) {
     for (const cte of root.with as AstNode[]) {
       const name = nameOf(cte.name);
-      if (name) cteNames.add(name.toLowerCase());
+      const body = cte.stmt?.ast;
+      if (!name) continue;
+      cteNames.add(name.toLowerCase());
+      if (body) cteMap.set(name.toLowerCase(), body);
     }
   }
 
@@ -295,6 +300,7 @@ export function buildSemanticRelations(
 
     const refs = collectRefs(expr);
     const resolved: string[] = [];
+    const via: string[] = [];
     let confidence: LineageRow['confidence'] = 'exact';
 
     for (const ref of refs) {
@@ -304,6 +310,15 @@ export function buildSemanticRelations(
         confidence = 'unknown';
         continue;
       }
+
+      const physical = resolveRef(root, ref, cteMap, new Set());
+      if (physical) {
+        resolved.push(physical.source);
+        via.push(...physical.via);
+        if (!physical.exact) confidence = 'partial';
+        continue;
+      }
+
       const source = ref.table
         ? byKey.get(ref.table.toLowerCase())
         : sources.length === 1
@@ -311,6 +326,7 @@ export function buildSemanticRelations(
           : undefined;
       if (source) {
         resolved.push(`${source.name}.${ref.column}`);
+        if (source.kind === 'cte' || source.kind === 'subquery') confidence = 'partial';
       } else {
         resolved.push(ref.table ? `${ref.table}.${ref.column}` : ref.column);
         confidence = 'partial';
@@ -330,6 +346,7 @@ export function buildSemanticRelations(
       id: `${idPrefix}-sem-lineage-${index + 1}`,
       output,
       source: [...new Set(resolved)].join(' + '),
+      via: via.length > 0 ? [...new Set(via)] : undefined,
       transform: transformOf(expr),
       line: nodeLoc(expr).line ?? 1,
       confidence,
@@ -337,6 +354,135 @@ export function buildSemanticRelations(
   }
 
   return { sources, joins, lineage };
+}
+
+interface ResolvedRef {
+  source: string;
+  via: string[];
+  exact: boolean;
+}
+
+function findFromItem(queryAst: AstNode, tableOrAlias?: string): AstNode | undefined {
+  const items = queryAst.from ?? [];
+  if (!tableOrAlias) return items.length === 1 ? items[0] : undefined;
+  const key = tableOrAlias.toLowerCase();
+  return items.find((item) => {
+    const alias = aliasOf(item.as)?.toLowerCase();
+    const table = typeof item.table === 'string' ? item.table.toLowerCase() : undefined;
+    return alias === key || table === key;
+  });
+}
+
+function findCteColumn(cteAst: AstNode, column: string): AstNode | undefined {
+  const target = column.toLowerCase();
+  for (const item of cteAst.columns ?? []) {
+    const alias = aliasOf(item.as);
+    if (alias && alias.toLowerCase() === target) return item.expr;
+    if (item.expr?.type === 'column_ref') {
+      const name = String(item.expr.column ?? '');
+      if (name.toLowerCase() === target) return item.expr;
+    }
+  }
+  return undefined;
+}
+
+function resolveRef(
+  queryAst: AstNode,
+  ref: { table?: string; column: string },
+  cteMap: Map<string, AstNode>,
+  visited: Set<string>,
+): ResolvedRef | null {
+  if (!ref.column || ref.column === '*') return null;
+  const item = findFromItem(queryAst, ref.table);
+  if (!item) return null;
+
+  const alias = aliasOf(item.as);
+
+  if (typeof item.table === 'string') {
+    const tableName = item.table;
+    const key = tableName.toLowerCase();
+    const cteAst = cteMap.get(key);
+
+    if (cteAst) {
+      if (visited.has(key)) return null;
+      const expr = findCteColumn(cteAst, ref.column);
+      if (!expr) return null;
+      const nested = resolveExpression(
+        cteAst,
+        expr,
+        cteMap,
+        new Set([...visited, key]),
+      );
+      if (!nested) return null;
+      return {
+        source: nested.source,
+        via: [tableName, ...nested.via],
+        exact: nested.exact,
+      };
+    }
+
+    return { source: `${tableName}.${ref.column}`, via: [], exact: true };
+  }
+
+  const nestedAst =
+    item.expr?.ast ??
+    (item.table && typeof item.table === 'object' ? item.table : undefined);
+  if (!nestedAst) return null;
+
+  const key = (alias ?? '子查询').toLowerCase();
+  if (visited.has(key)) return null;
+  const nested = resolveColumnInQuery(
+    nestedAst,
+    ref.column,
+    cteMap,
+    new Set([...visited, key]),
+  );
+  if (!nested) return null;
+  return {
+    source: nested.source,
+    via: [alias ?? '子查询', ...nested.via],
+    exact: nested.exact,
+  };
+}
+
+function resolveColumnInQuery(
+  queryAst: AstNode,
+  column: string,
+  cteMap: Map<string, AstNode>,
+  visited: Set<string>,
+): ResolvedRef | null {
+  const items = queryAst.from ?? [];
+  if (items.length !== 1) return null;
+  const table = typeof items[0]!.table === 'string' ? items[0]!.table : undefined;
+  return resolveRef(queryAst, { table, column }, cteMap, visited);
+}
+
+function resolveExpression(
+  queryAst: AstNode,
+  expr: AstNode | undefined,
+  cteMap: Map<string, AstNode>,
+  visited: Set<string>,
+): ResolvedRef | null {
+  const refs = collectRefs(expr);
+  if (refs.length === 0) return null;
+
+  const sources: string[] = [];
+  const via: string[] = [];
+  let exact = true;
+
+  for (const ref of refs) {
+    const result = resolveRef(queryAst, ref, cteMap, visited);
+    if (!result) return null;
+    sources.push(result.source);
+    via.push(...result.via);
+    if (!result.exact) exact = false;
+  }
+
+  return {
+    source: [...new Set(sources)].join(' + '),
+    via: [...new Set(via)],
+    exact,
+  };
 }
 
 function compact(text: string, max: number): string {

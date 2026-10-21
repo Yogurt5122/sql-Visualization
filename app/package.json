@@ -1,7 +1,7 @@
 {
   "name": "sql-xray",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.3.4",
   "type": "module",
   "description": "把屎山 SQL 讲成人话的纯前端工具",
   "license": "MIT",

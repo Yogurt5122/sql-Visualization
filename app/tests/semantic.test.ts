@@ -74,4 +74,44 @@ LIMIT 10`,
     expect(analysis.summary).toContain('取前 10 行');
     expect(analysis.metrics.tables).toBe(1);
   });
+
+  it('CTE 血缘会追到物理表，并记录经过的 CTE', () => {
+    const analysis = analyzeSql(
+      `WITH base AS (
+  SELECT id, amount FROM dwd_order WHERE amount > 0
+)
+SELECT b.id, b.amount FROM base b`,
+      'mysql',
+    );
+    const lineage = analysis.relations[0]!.lineage;
+
+    expect(lineage[0]?.source).toBe('dwd_order.id');
+    expect(lineage[0]?.via).toEqual(['base']);
+    expect(lineage[1]?.source).toBe('dwd_order.amount');
+    expect(lineage[1]?.via).toEqual(['base']);
+    expect(lineage[0]?.confidence).toBe('exact');
+  });
+
+  it('CTE 链会逐层递归到底层表', () => {
+    const analysis = analyzeSql(
+      `WITH a AS (SELECT id FROM src),
+b AS (SELECT id FROM a)
+SELECT id FROM b`,
+      'mysql',
+    );
+    const lineage = analysis.relations[0]!.lineage;
+
+    expect(lineage[0]?.source).toBe('src.id');
+    expect(lineage[0]?.via).toEqual(['b', 'a']);
+  });
+
+  it('多语句会分别生成总结和关系', () => {
+    const analysis = analyzeSql('SELECT id FROM a; SELECT name FROM b;', 'mysql');
+
+    expect(analysis.statements).toHaveLength(2);
+    expect(analysis.summaries).toHaveLength(2);
+    expect(analysis.summaries[0]).toContain('a');
+    expect(analysis.summaries[1]).toContain('b');
+    expect(analysis.relations).toHaveLength(2);
+  });
 });

@@ -230,6 +230,29 @@ button {
   gap: 12px;
 }
 
+.statement-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.statement-switch button {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.statement-switch button.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 .summary-card {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1035,6 +1058,15 @@ button {
 
 .lineage-line {
   color: #94a3b8;
+  white-space: nowrap;
+}
+
+.lineage-via {
+  max-width: 180px;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 10px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

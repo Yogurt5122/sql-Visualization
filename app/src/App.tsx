@@ -47,12 +47,24 @@ WHERE b.amount > 100
 ORDER BY b.amount DESC
 LIMIT 50`;
 
+const SAMPLE_MULTI = `SELECT id, name
+FROM dwd_user
+WHERE status = 1;
+
+SELECT order_id, SUM(amount) AS total
+FROM dwd_order
+WHERE dt = '2024-12-01'
+GROUP BY order_id
+ORDER BY total DESC
+LIMIT 20;`;
+
 let scrollNonce = 0;
 
 function initialSql(): string {
   const sample = new URLSearchParams(window.location.search).get('sample');
   if (sample === 'mybatis') return SAMPLE_MYBATIS;
   if (sample === 'cte') return SAMPLE_CTE;
+  if (sample === 'multi') return SAMPLE_MULTI;
   if (sample === 'dm8') return SAMPLE_DM8;
   return SAMPLE_MYSQL;
 }
@@ -62,6 +74,7 @@ export default function App() {
   const [dialect, setDialect] = useState<Dialect>('auto');
   const [mybatisVariant, setMybatisVariant] = useState<MybatisVariant>('all');
   const [activeLine, setActiveLine] = useState(1);
+  const [activeStatement, setActiveStatement] = useState(0);
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
@@ -71,6 +84,10 @@ export default function App() {
     dialect,
     mybatisVariant,
   );
+  const statementIndex =
+    analysis.statements.length > 0
+      ? Math.min(activeStatement, analysis.statements.length - 1)
+      : 0;
   const clauses = useMemo(
     () => analysis.statements.flatMap((statement) => statement.clauses),
     [analysis],
@@ -107,6 +124,10 @@ export default function App() {
   };
 
   const handleSelectClause = (clause: Clause) => {
+    const index = analysis.statements.findIndex((statement) =>
+      statement.clauses.some((item) => item.id === clause.id),
+    );
+    if (index >= 0) setActiveStatement(index);
     setActiveLine(clause.span.startLine);
     requestScroll(clause.span.startLine);
   };
@@ -135,6 +156,7 @@ export default function App() {
   const loadSample = (sample: string) => {
     setSql(sample);
     setActiveLine(1);
+    setActiveStatement(0);
     requestScroll(1);
   };
 
@@ -230,6 +252,23 @@ export default function App() {
         </section>
 
         <section className="pane result-pane" aria-label="分析结果">
+          {analysis.statements.length > 1 && (
+            <div className="statement-switch" role="tablist" aria-label="语句切换">
+              {analysis.statements.map((statement, index) => (
+                <button
+                  key={statement.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={index === statementIndex}
+                  className={index === statementIndex ? 'is-active' : ''}
+                  onClick={() => setActiveStatement(index)}
+                >
+                  语句 {index + 1}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="summary-card">
             <div className="summary-top">
               <span className="eyebrow">一句话总结</span>
@@ -237,7 +276,9 @@ export default function App() {
                 {DIALECT_LABEL[analysis.dialect]} · {Math.round(analysis.confidence * 100)}%
               </span>
             </div>
-            <p className="summary-text">{analysis.summary}</p>
+            <p className="summary-text">
+              {analysis.summaries[statementIndex] ?? analysis.summary}
+            </p>
             <p className="summary-note">
               只做静态结构与语法解释；不连接数据库，不生成执行计划，不保证性能结论。
             </p>
@@ -381,6 +422,7 @@ export default function App() {
           {analysis.relations.length > 0 && (
             <RelationsView
               relations={analysis.relations}
+              statementIndex={statementIndex}
               onSelectLine={handleSelectLine}
             />
           )}
@@ -403,7 +445,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.3
+          左侧色条对应子句 · 点击行可定位 · v0.3.4
         </span>
       </footer>
     </div>

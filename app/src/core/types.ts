@@ -122,6 +122,7 @@ export interface LineageRow {
   id: string;
   output: string;
   source: string;
+  via?: string[];
   transform: LineageTransform;
   line: number;
   confidence: 'exact' | 'partial' | 'unknown';
@@ -195,6 +196,7 @@ export interface Analysis {
   relations: Relations[];
   metrics: AnalysisMetrics;
   semantic: Array<SemanticQuery | null>;
+  summaries: string[];
   summary: string;
   warnings: string[];
   mode: 'semantic' | 'structural';
