@@ -546,6 +546,181 @@ button {
   --flow-color: #b45309;
 }
 
+/* ---------- 结构树 ---------- */
+.structure-section {
+  margin-top: 2px;
+}
+
+.structure-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 2px 2px 6px;
+}
+
+.structure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.structure-chevron {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.structure-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.structure-search {
+  flex: 1 1 180px;
+  min-width: 140px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.structure-search:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.18);
+  border-color: #93c5fd;
+}
+
+.structure-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.structure-check input {
+  margin: 0;
+}
+
+.structure-tree {
+  max-height: 340px;
+  padding: 5px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.structure-empty {
+  padding: 10px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 27px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.tree-row:hover {
+  background: #f8fafc;
+}
+
+.tree-row.is-active {
+  background: #eff6ff;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tree-chevron {
+  flex: 0 0 14px;
+  width: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tree-chevron:disabled {
+  cursor: default;
+}
+
+.tree-badge {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.tree-badge-statement {
+  background: #0f172a;
+  color: #fff;
+}
+
+.tree-badge-query {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.tree-badge-subquery {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.tree-badge-cte {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+
+.tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tree-label:hover {
+  color: var(--accent);
+}
+
+.tree-lines {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 /* ---------- 逐句解释 ---------- */
 .result-head {
   display: flex;

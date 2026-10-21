@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { analyzeSql } from './core/explain';
 import { buildFlow, type FlowStep } from './core/flow';
+import { buildStructure, type StructureNode } from './core/structure';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
 import type { Clause, Dialect, Issue } from './core/types';
 import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
+import { StructureView } from './ui/StructureView';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM dwd_order o
@@ -47,6 +49,10 @@ export default function App() {
     [analysis],
   );
   const allSteps = useMemo(() => flows.flatMap((flow) => flow.steps), [flows]);
+  const structures = useMemo(
+    () => analysis.statements.map((statement) => buildStructure(statement)),
+    [analysis],
+  );
 
   const activeClause = clauses.find(
     (clause) => activeLine >= clause.span.startLine && activeLine <= clause.span.endLine,
@@ -70,6 +76,11 @@ export default function App() {
   const handleSelectStep = (step: FlowStep) => {
     setActiveLine(step.startLine);
     requestScroll(step.startLine);
+  };
+
+  const handleSelectNode = (node: StructureNode) => {
+    setActiveLine(node.startLine);
+    requestScroll(node.startLine);
   };
 
   const handleSelectIssue = (issue: Issue) => {
@@ -254,6 +265,14 @@ export default function App() {
                 </div>
               ))}
             </section>
+          )}
+
+          {structures.length > 0 && (
+            <StructureView
+              roots={structures}
+              activeLine={activeLine}
+              onSelect={handleSelectNode}
+            />
           )}
 
           <div className="result-head">
