@@ -411,6 +411,141 @@ button {
   color: #9f1239;
 }
 
+/* ---------- 执行流程 ---------- */
+.flow-section {
+  margin-top: 2px;
+}
+
+.flow-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 2px 2px 6px;
+}
+
+.flow-head h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.flow-statement + .flow-statement {
+  margin-top: 10px;
+}
+
+.flow-statement-label {
+  margin: 0 2px 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.flow-track {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  padding: 2px 2px 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.flow-arrow {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.flow-step {
+  --flow-color: #2563eb;
+  flex: 0 0 auto;
+  min-width: 104px;
+  max-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--flow-color);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flow-step:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.flow-step.is-active {
+  border-color: var(--flow-color);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.13);
+}
+
+.flow-step:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.flow-index {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.flow-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--flow-color);
+}
+
+.flow-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.flow-detail {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.flow-lines {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.flow-effect-source {
+  --flow-color: #2563eb;
+}
+
+.flow-effect-filter {
+  --flow-color: #ea580c;
+}
+
+.flow-effect-aggregate {
+  --flow-color: #7c3aed;
+}
+
+.flow-effect-compute {
+  --flow-color: #059669;
+}
+
+.flow-effect-distinct {
+  --flow-color: #0891b2;
+}
+
+.flow-effect-sort {
+  --flow-color: #475569;
+}
+
+.flow-effect-truncate {
+  --flow-color: #b45309;
+}
+
 /* ---------- 逐句解释 ---------- */
 .result-head {
   display: flex;

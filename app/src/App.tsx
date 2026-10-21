@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { analyzeSql } from './core/explain';
+import { buildFlow, type FlowStep } from './core/flow';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
 import type { Clause, Dialect, Issue } from './core/types';
 import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
+import { FlowView } from './ui/FlowView';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM dwd_order o
@@ -36,9 +38,21 @@ export default function App() {
     () => analysis.statements.flatMap((statement) => statement.clauses),
     [analysis],
   );
+  const flows = useMemo(
+    () =>
+      analysis.statements.map((statement) => ({
+        statement,
+        steps: buildFlow(statement),
+      })),
+    [analysis],
+  );
+  const allSteps = useMemo(() => flows.flatMap((flow) => flow.steps), [flows]);
 
   const activeClause = clauses.find(
     (clause) => activeLine >= clause.span.startLine && activeLine <= clause.span.endLine,
+  );
+  const activeStep = allSteps.find(
+    (step) => activeLine >= step.startLine && activeLine <= step.endLine,
   );
   const lineCount = sql ? sql.split('\n').length : 0;
   const highRiskCount = analysis.issues.filter((issue) => issue.severity === 'high').length;
@@ -51,6 +65,11 @@ export default function App() {
   const handleSelectClause = (clause: Clause) => {
     setActiveLine(clause.span.startLine);
     requestScroll(clause.span.startLine);
+  };
+
+  const handleSelectStep = (step: FlowStep) => {
+    setActiveLine(step.startLine);
+    requestScroll(step.startLine);
   };
 
   const handleSelectIssue = (issue: Issue) => {
@@ -213,6 +232,27 @@ export default function App() {
                 ))}
               </ul>
               <p className="disclaimer">静态代码检查，不是执行计划，也不代表一定会慢。</p>
+            </section>
+          )}
+
+          {flows.length > 0 && (
+            <section className="flow-section" aria-label="执行流程">
+              <div className="flow-head">
+                <h2>执行流程</h2>
+                <span className="muted">按实际求值顺序，不是书写顺序</span>
+              </div>
+              {flows.map((flow, index) => (
+                <div key={flow.statement.id} className="flow-statement">
+                  {flows.length > 1 && (
+                    <div className="flow-statement-label">语句 {index + 1}</div>
+                  )}
+                  <FlowView
+                    steps={flow.steps}
+                    activeStepId={activeStep?.id}
+                    onSelect={handleSelectStep}
+                  />
+                </div>
+              ))}
             </section>
           )}
 

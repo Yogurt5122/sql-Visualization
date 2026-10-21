@@ -1,6 +1,7 @@
 import { resolveDialect } from './dialects';
 import { scan } from './scanner';
 import { splitStatements } from './splitter';
+import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 import type {
   Analysis,
   Clause,
@@ -43,11 +44,6 @@ function truncate(text: string, max: number): string {
   return compact.length > max ? `${compact.slice(0, max)}…` : compact;
 }
 
-function stripKeyword(text: string, keyword: string): string {
-  const pattern = keyword.replace(/\s+/g, '\\s+');
-  return text.replace(new RegExp(`^\\s*${pattern}\\b`, 'i'), '').trim();
-}
-
 function cleanValue(value: string): string {
   const trimmed = value.trim();
   if (
@@ -58,36 +54,6 @@ function cleanValue(value: string): string {
     return trimmed.slice(1, -1);
   }
   return trimmed;
-}
-
-function splitTopLevel(text: string, separator: ','): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let quote: string | null = null;
-  let start = 0;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if (quote) {
-      if (ch === quote) {
-        if (text[i + 1] === quote) i += 1;
-        else quote = null;
-      }
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      quote = ch;
-      continue;
-    }
-    if (ch === '(') depth += 1;
-    else if (ch === ')') depth = Math.max(0, depth - 1);
-    else if (ch === separator && depth === 0) {
-      parts.push(text.slice(start, i).trim());
-      start = i + 1;
-    }
-  }
-  parts.push(text.slice(start).trim());
-  return parts.filter(Boolean);
 }
 
 /**
@@ -239,7 +205,7 @@ function parseFromPart(part: string): TablePart | null {
 }
 
 function parseFromClause(clause: Clause): TablePart[] {
-  return splitTopLevel(stripKeyword(clause.text, 'FROM'), ',')
+  return splitTopLevel(stripLeadingKeyword(clause.text, 'FROM'), ',')
     .map(parseFromPart)
     .filter((part): part is TablePart => part !== null);
 }
@@ -288,7 +254,7 @@ function describeJoin(clause: Clause): { plain: string; table?: string } {
 }
 
 function parseSelectItems(clause: Clause): string[] {
-  const body = stripKeyword(clause.text, 'SELECT').replace(/^DISTINCT\s+/i, '');
+  const body = stripLeadingKeyword(clause.text, 'SELECT').replace(/^DISTINCT\s+/i, '');
   return splitTopLevel(body, ',');
 }
 
@@ -360,7 +326,7 @@ function explainClause(clause: Clause): { plain: string; refs: string[] } {
       return { plain: result.plain, refs: [...refs] };
     }
     case 'where': {
-      const conditions = splitConditions(stripKeyword(clause.text, 'WHERE'));
+      const conditions = splitConditions(stripLeadingKeyword(clause.text, 'WHERE'));
       if (conditions.length === 0) return { plain: '没有有效的过滤条件。', refs: [] };
       const described = conditions.slice(0, 3).map(describeCondition);
       const suffix = conditions.length > 3 ? `等 ${conditions.length} 个条件` : '';
@@ -370,18 +336,18 @@ function explainClause(clause: Clause): { plain: string; refs: string[] } {
       };
     }
     case 'groupBy': {
-      const items = splitTopLevel(stripKeyword(clause.text, 'GROUP BY'), ',');
+      const items = splitTopLevel(stripLeadingKeyword(clause.text, 'GROUP BY'), ',');
       return { plain: `按 ${items.join('、')} 分组，每组一行。`, refs: [] };
     }
     case 'having': {
-      const conditions = splitConditions(stripKeyword(clause.text, 'HAVING'));
+      const conditions = splitConditions(stripLeadingKeyword(clause.text, 'HAVING'));
       return {
         plain: `分组后再筛：${conditions.map(describeCondition).join('、')}。`,
         refs: [],
       };
     }
     case 'orderBy': {
-      const items = splitTopLevel(stripKeyword(clause.text, 'ORDER BY'), ',');
+      const items = splitTopLevel(stripLeadingKeyword(clause.text, 'ORDER BY'), ',');
       return { plain: `按 ${items.map(describeOrderItem).join('、')} 排序。`, refs: [] };
     }
     case 'limit': {
@@ -474,11 +440,11 @@ function buildSummary(statements: Statement[]): string {
     if (names.length) parts.push(`关联 ${names.join('、')}`);
   }
   if (where) {
-    const count = splitConditions(stripKeyword(where.text, 'WHERE')).length;
+    const count = splitConditions(stripLeadingKeyword(where.text, 'WHERE')).length;
     if (count) parts.push(`只看 ${count} 个条件`);
   }
   if (groupBy) {
-    const items = splitTopLevel(stripKeyword(groupBy.text, 'GROUP BY'), ',');
+    const items = splitTopLevel(stripLeadingKeyword(groupBy.text, 'GROUP BY'), ',');
     if (items.length) parts.push(`按 ${items.join('、')} 分组`);
   }
   if (having) {
@@ -489,7 +455,7 @@ function buildSummary(statements: Statement[]): string {
     if (count) parts.push(`输出 ${count} 列`);
   }
   if (orderBy) {
-    const items = splitTopLevel(stripKeyword(orderBy.text, 'ORDER BY'), ',');
+    const items = splitTopLevel(stripLeadingKeyword(orderBy.text, 'ORDER BY'), ',');
     if (items.length) parts.push(`按 ${items.map(describeOrderItem).join('、')} 排序`);
   }
   if (limit) {
