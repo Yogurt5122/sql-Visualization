@@ -200,31 +200,138 @@ const ORIGIN_LABEL: Record<NonNullable<SemanticQuery['origin']>, string> = {
   where: 'WHERE 子查询',
   having: 'HAVING 子查询',
   select: 'SELECT 子查询',
+  union: 'UNION 分支',
 };
 
 interface QueryBlockRow {
   query: SemanticQuery;
   depth: number;
   label: string;
+  parentId?: string;
+  tableCount?: number;
+}
+
+function collectBlockTables(
+  query: SemanticQuery,
+  cteMap: Map<string, SemanticQuery>,
+  visited: Set<string>,
+  result: Set<string> = new Set(),
+): Set<string> {
+  for (const table of query.tables) result.add(table);
+  for (const source of query.sources) {
+    if (source.kind !== 'cte') continue;
+    const key = source.name.toLowerCase();
+    if (visited.has(key)) continue;
+    const cte = cteMap.get(key);
+    if (!cte) continue;
+    visited.add(key);
+    collectBlockTables(cte, cteMap, visited, result);
+  }
+  for (const subquery of query.subqueries) {
+    collectBlockTables(subquery, cteMap, visited, result);
+  }
+  for (const branch of query.branches) {
+    collectBlockTables(branch, cteMap, visited, result);
+  }
+  return result;
 }
 
 function flattenQueryBlocks(
   query: SemanticQuery,
   depth = 0,
   rows: QueryBlockRow[] = [],
+  labelOverride?: string,
 ): QueryBlockRow[] {
   const label =
-    query.kind === 'main'
+    labelOverride ??
+    (query.kind === 'main'
       ? '主查询'
       : query.kind === 'cte'
         ? `CTE ${query.name ?? ''}`.trim()
-        : ORIGIN_LABEL[query.origin ?? 'from'];
-  rows.push({ query, depth, label });
+        : ORIGIN_LABEL[query.origin ?? 'from']);
+  rows.push({ query, depth, label, parentId: query.parentId });
   for (const cte of query.ctes) flattenQueryBlocks(cte.query, depth + 1, rows);
   for (const subquery of query.subqueries) {
     flattenQueryBlocks(subquery, depth + 1, rows);
   }
+  query.branches.forEach((branch, index) => {
+    flattenQueryBlocks(branch, depth + 1, rows, `UNION 分支 ${index + 1}`);
+  });
   return rows;
+}
+
+function QueryBlockGraph({
+  rows,
+  onSelectLine,
+}: {
+  rows: QueryBlockRow[];
+  onSelectLine: (line: number) => void;
+}) {
+  const width = 620;
+  const rowHeight = 50;
+  const nodeHeight = 38;
+  const height = Math.max(90, rows.length * rowHeight + 16);
+  const positions = new Map<string, { x: number; y: number; width: number }>();
+
+  for (const [index, row] of rows.entries()) {
+    const x = 12 + row.depth * 26;
+    positions.set(row.query.id, {
+      x,
+      y: 8 + index * rowHeight,
+      width: width - x - 12,
+    });
+  }
+
+  return (
+    <svg
+      className="query-block-graph"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={`查询块图：${rows.length} 个查询块`}
+    >
+      {rows.map((row) => {
+        const child = positions.get(row.query.id);
+        const parent = row.parentId ? positions.get(row.parentId) : undefined;
+        if (!child || !parent) return null;
+        const startX = parent.x + 16;
+        const startY = parent.y + nodeHeight;
+        const targetY = child.y + nodeHeight / 2;
+        return (
+          <path
+            key={`edge-${row.query.id}`}
+            className="query-block-edge"
+            d={`M ${startX} ${startY} V ${targetY} H ${child.x}`}
+          />
+        );
+      })}
+      {rows.map((row) => {
+        const position = positions.get(row.query.id);
+        if (!position) return null;
+        return (
+          <g
+            key={row.query.id}
+            className={`query-block-node query-block-node-${row.query.kind}`}
+            transform={`translate(${position.x}, ${position.y})`}
+            onClick={() => onSelectLine(row.query.startLine)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onSelectLine(row.query.startLine);
+            }}
+          >
+            <rect width={position.width} height={nodeHeight} rx={7} />
+            <text className="query-block-graph-label" x={8} y={16}>
+              {shorten(row.label, 26)}
+            </text>
+            <text className="query-block-graph-meta" x={8} y={30}>
+              L{row.query.startLine}–{row.query.endLine} ·{' '}
+              {row.tableCount ?? row.query.tables.length} 表 · {row.query.joins} 连接
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 function QueryBlockList({
@@ -235,27 +342,41 @@ function QueryBlockList({
   onSelectLine: (line: number) => void;
 }) {
   const rows = flattenQueryBlocks(semantic);
+  const cteMap = new Map(
+    rows
+      .filter(
+        (row): row is QueryBlockRow & { query: SemanticQuery & { name: string } } =>
+          row.query.kind === 'cte' && Boolean(row.query.name),
+      )
+      .map((row) => [row.query.name.toLowerCase(), row.query]),
+  );
+  const enriched = rows.map((row) => ({
+    ...row,
+    tableCount: collectBlockTables(row.query, cteMap, new Set()).size,
+  }));
 
   return (
     <div className="query-blocks">
-      {rows.map(({ query, depth, label }) => (
-        <button
-          key={query.id}
-          type="button"
-          className="query-block"
-          style={{ paddingLeft: `${10 + depth * 16}px` }}
-          onClick={() => onSelectLine(query.startLine)}
-        >
-          <span className={`query-block-kind query-block-kind-${query.kind}`}>
-            {query.kind === 'main' ? '主查询' : query.kind === 'cte' ? 'CTE' : '子查询'}
-          </span>
-          <span className="query-block-label">{label}</span>
-          <span className="query-block-meta">
-            L{query.startLine}–{query.endLine} · {query.tables.length} 表 ·{' '}
-            {query.joins} 连接
-          </span>
-        </button>
-      ))}
+      <QueryBlockGraph rows={enriched} onSelectLine={onSelectLine} />
+      <div className="query-block-list">
+        {enriched.map(({ query, depth, label, tableCount }) => (
+          <button
+            key={query.id}
+            type="button"
+            className="query-block"
+            style={{ paddingLeft: `${10 + depth * 16}px` }}
+            onClick={() => onSelectLine(query.startLine)}
+          >
+            <span className={`query-block-kind query-block-kind-${query.kind}`}>
+              {query.kind === 'main' ? '主查询' : query.kind === 'cte' ? 'CTE' : '子查询'}
+            </span>
+            <span className="query-block-label">{label}</span>
+            <span className="query-block-meta">
+              L{query.startLine}–{query.endLine} · {tableCount} 表 · {query.joins} 连接
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

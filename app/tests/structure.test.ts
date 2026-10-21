@@ -173,4 +173,22 @@ FROM dwd_order o`;
     );
     expect(analysis.semantic[0]?.subqueries[0]?.correlated).toBe(true);
   });
+
+  it('UNION 分支会挂到 UNION 子句', () => {
+    const analysis = analyzeSql(
+      'SELECT id FROM a UNION SELECT id FROM b',
+      'mysql',
+    );
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const union = root.children[0]!.children.find(
+      (child) => child.label === 'UNION',
+    )!;
+
+    expect(union.children).toHaveLength(1);
+    expect(union.children[0]?.label).toBe('分支 1');
+    expect(union.children[0]?.children.map((child) => child.label)).toEqual([
+      'SELECT',
+      'FROM',
+    ]);
+  });
 });

@@ -89,6 +89,8 @@ interface AstNode {
   groupby?: { columns?: AstNode[] };
   orderby?: Array<{ expr?: AstNode; type?: string }>;
   limit?: { value?: Array<{ value?: unknown }> };
+  _next?: AstNode;
+  set_op?: string;
   with?: Array<{
     name?: AstNode['name'];
     stmt?: { ast?: AstNode } | AstNode;
@@ -726,6 +728,10 @@ export function buildSemanticQuery(
         'cte',
         cteName,
         visibleCtes,
+        0,
+        undefined,
+        'with',
+        idPrefix,
       );
       ctes.push({ name: cteName, tables: query.tables, query });
     });
@@ -840,6 +846,31 @@ export function buildSemanticQuery(
   );
   const limitValue = root.limit?.value?.[0]?.value;
 
+  const branches: SemanticQuery[] = [];
+  let next = root._next;
+  let operator = root.set_op;
+  let branchIndex = 0;
+  while (next) {
+    branchIndex += 1;
+    const branchAst: AstNode = { ...next, _next: undefined };
+    const branch = buildSemanticQuery(
+      sql,
+      branchAst,
+      `${idPrefix}-union-${branchIndex}`,
+      'subquery',
+      undefined,
+      visibleCtes,
+      depth,
+      'union',
+      'union',
+      idPrefix,
+    );
+    branch.branchOperator = operator;
+    branches.push(branch);
+    operator = next.set_op;
+    next = next._next;
+  }
+
   return {
     id: idPrefix,
     kind,
@@ -869,34 +900,83 @@ export function buildSemanticQuery(
     clauses,
     ctes,
     subqueries,
+    branches,
   };
+}
+
+function sourceLabel(source: RelationSource): string {
+  return source.alias ? `${source.name}（别名 ${source.alias}）` : source.name;
+}
+
+function collectPhysicalTables(
+  query: SemanticQuery,
+  byName: Map<string, SemanticCte>,
+  visited: Set<string>,
+  result: Set<string> = new Set(),
+): string[] {
+  for (const table of query.tables) result.add(table);
+
+  for (const source of query.sources) {
+    if (source.kind !== 'cte') continue;
+    const key = source.name.toLowerCase();
+    if (visited.has(key)) continue;
+    const cte = byName.get(key);
+    if (!cte) continue;
+    visited.add(key);
+    collectPhysicalTables(cte.query, byName, visited, result);
+  }
+
+  for (const subquery of query.subqueries) {
+    collectPhysicalTables(subquery, byName, visited, result);
+  }
+  for (const branch of query.branches) {
+    collectPhysicalTables(branch, byName, visited, result);
+  }
+
+  return [...result];
 }
 
 export function summarizeSemantic(query: SemanticQuery): string {
   const parts: string[] = [];
 
   if (query.ctes.length > 0) {
-    const list = query.ctes.map(
-      (cte) =>
-        `${cte.name} ← ${cte.tables.length > 0 ? cte.tables.join('/') : '子查询'}`,
+    const byName = new Map(
+      query.ctes.map((cte) => [cte.name.toLowerCase(), cte]),
     );
+    const list = query.ctes.map((cte) => {
+      const directRefs = cte.query.sources
+        .filter((source) => source.kind === 'cte')
+        .map((source) => source.name);
+      const tables = collectPhysicalTables(
+        cte.query,
+        byName,
+        new Set([cte.name.toLowerCase()]),
+      );
+      const suffix =
+        directRefs.length > 0 ? `（经 ${directRefs.join(' → ')}）` : '';
+      return `${cte.name} ← ${tables.join('/') || '子查询'}${suffix}`;
+    });
     parts.push(`先定义 ${query.ctes.length} 个 CTE（${list.join('、')}）`);
   }
 
-  const [main, ...related] = query.sources;
-  if (main) {
-    parts.push(
-      `从 ${main.alias ? `${main.name}（别名 ${main.alias}）` : main.name} 取数`,
-    );
-  }
-  if (related.length > 0) {
-    parts.push(
-      `关联 ${related
-        .map((source) =>
-          source.alias ? `${source.name}（别名 ${source.alias}）` : source.name,
-        )
-        .join('、')}`,
-    );
+  if (query.branches.length > 0) {
+    const names = [
+      ...new Set(
+        [...query.sources, ...query.branches.flatMap((branch) => branch.sources)].map(
+          (source) => sourceLabel(source),
+        ),
+      ),
+    ];
+    parts.push(`共 ${query.branches.length + 1} 个 UNION 分支`);
+    if (names.length > 0) parts.push(`涉及 ${names.join('、')}`);
+  } else {
+    const [main, ...related] = query.sources;
+    if (main) {
+      parts.push(`从 ${sourceLabel(main)} 取数`);
+    }
+    if (related.length > 0) {
+      parts.push(`关联 ${related.map(sourceLabel).join('、')}`);
+    }
   }
   if (query.whereCount > 0) {
     parts.push(`只看 ${query.whereCount} 个条件`);

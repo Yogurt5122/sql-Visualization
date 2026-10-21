@@ -154,4 +154,38 @@ WHERE o.user_id IN (SELECT id FROM dim_user)`,
     expect(model.hasAggregate).toBe(true);
     expect(analysis.metrics.depth).toBe(0);
   });
+
+  it('UNION 分支进入 QueryBlock，并生成分支总结', () => {
+    const analysis = analyzeSql(
+      'SELECT id FROM a UNION ALL SELECT id FROM b',
+      'mysql',
+    );
+    const model = analysis.semantic[0]!;
+
+    expect(model.branches).toHaveLength(1);
+    expect(model.branches[0]?.origin).toBe('union');
+    expect(model.branches[0]?.branchOperator).toBe('union all');
+    expect(model.branches[0]?.tables).toEqual(['b']);
+    expect(analysis.metrics.tables).toBe(2);
+    expect(analysis.summary).toContain('2 个 UNION 分支');
+    expect(analysis.summary).toContain('a');
+    expect(analysis.summary).toContain('b');
+  });
+
+  it('CTE 链总结会递归到物理表并标出经过的 CTE', () => {
+    const analysis = analyzeSql(
+      `WITH paid AS (
+  SELECT id, amount FROM dwd_order
+),
+stats AS (
+  SELECT id, SUM(amount) AS total FROM paid GROUP BY id
+)
+SELECT id, total FROM stats`,
+      'mysql',
+    );
+
+    expect(analysis.summary).toContain('stats ← dwd_order');
+    expect(analysis.summary).toContain('经 paid');
+    expect(analysis.metrics.tables).toBe(1);
+  });
 });

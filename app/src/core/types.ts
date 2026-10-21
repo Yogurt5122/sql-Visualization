@@ -183,10 +183,11 @@ export interface SemanticQuery {
   id: string;
   kind: 'main' | 'cte' | 'subquery';
   name?: string;
-  origin?: 'from' | 'where' | 'having' | 'select';
+  origin?: 'from' | 'where' | 'having' | 'select' | 'union';
   parentId?: string;
   parentClauseKind?: ClauseKind;
   correlated?: boolean;
+  branchOperator?: string;
   depth: number;
   startLine: number;
   endLine: number;
@@ -204,6 +205,7 @@ export interface SemanticQuery {
   clauses: SemanticClause[];
   ctes: SemanticCte[];
   subqueries: SemanticQuery[];
+  branches: SemanticQuery[];
 }
 
 export interface Analysis {

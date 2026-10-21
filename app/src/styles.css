@@ -310,6 +310,16 @@ button {
   font-size: 12px;
 }
 
+.dml-note {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .variant-switch {
   display: inline-flex;
   overflow: hidden;
@@ -984,8 +994,61 @@ button {
 .query-blocks {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   padding: 8px 0;
+}
+
+.query-block-graph {
+  width: 100%;
+  height: auto;
+}
+
+.query-block-edge {
+  fill: none;
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.query-block-node {
+  cursor: pointer;
+}
+
+.query-block-node rect {
+  fill: #fff;
+  stroke: #cbd5e1;
+}
+
+.query-block-node-main rect {
+  fill: #eff6ff;
+  stroke: #93c5fd;
+}
+
+.query-block-node-cte rect {
+  fill: #faf5ff;
+  stroke: #d8b4fe;
+}
+
+.query-block-node-subquery rect {
+  fill: #f0fdf4;
+  stroke: #a7f3d0;
+}
+
+.query-block-graph-label {
+  fill: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.query-block-graph-meta {
+  fill: #94a3b8;
+  font-size: 9px;
+}
+
+.query-block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .query-block {

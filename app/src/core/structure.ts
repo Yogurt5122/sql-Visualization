@@ -118,7 +118,8 @@ function queryHasTable(query: SemanticQuery): boolean {
   return (
     query.tables.length > 0 ||
     query.ctes.some((cte) => queryHasTable(cte.query)) ||
-    query.subqueries.some((subquery) => queryHasTable(subquery))
+    query.subqueries.some((subquery) => queryHasTable(subquery)) ||
+    query.branches.some((branch) => queryHasTable(branch))
   );
 }
 
@@ -146,6 +147,20 @@ function semanticSubqueryNodes(
     }));
 }
 
+function semanticUnionNodes(query: SemanticQuery): StructureNode[] {
+  return query.branches.map((branch, index) => ({
+    id: branch.id,
+    kind: 'subquery',
+    label: `分支 ${index + 1}`,
+    badge: 'UNION',
+    startLine: branch.startLine,
+    endLine: branch.endLine,
+    searchText: branch.clauses.map((clause) => clause.text).join(' '),
+    hasTable: queryHasTable(branch),
+    children: semanticClauseNodes(branch),
+  }));
+}
+
 function semanticClauseNodes(query: SemanticQuery): StructureNode[] {
   return query.clauses.map((clause, index) => ({
     id: `${query.id}-clause-${index + 1}`,
@@ -156,7 +171,10 @@ function semanticClauseNodes(query: SemanticQuery): StructureNode[] {
     endLine: clause.endLine,
     searchText: clause.text,
     hasTable: clause.hasTable,
-    children: semanticSubqueryNodes(query, clause.kind),
+    children: [
+      ...semanticSubqueryNodes(query, clause.kind),
+      ...(clause.kind === 'union' ? semanticUnionNodes(query) : []),
+    ],
   }));
 }
 
@@ -246,11 +264,15 @@ function buildClauseNode(
     clause.kind === 'join' ||
     clause.kind === 'where' ||
     clause.kind === 'having' ||
-    clause.kind === 'select';
+    clause.kind === 'select' ||
+    clause.kind === 'union';
 
   const children = canContainSubquery
     ? semantic
-      ? semanticSubqueryNodes(semantic, clause.kind)
+      ? [
+          ...semanticSubqueryNodes(semantic, clause.kind),
+          ...(clause.kind === 'union' ? semanticUnionNodes(semantic) : []),
+        ]
       : buildSubqueries(clause, refs, counter)
     : [];
 

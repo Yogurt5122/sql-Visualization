@@ -26,6 +26,7 @@ export function flattenSemanticQueries(
   result.push(query);
   for (const cte of query.ctes) flattenSemanticQueries(cte.query, result);
   for (const subquery of query.subqueries) flattenSemanticQueries(subquery, result);
+  for (const branch of query.branches) flattenSemanticQueries(branch, result);
   return result;
 }
 

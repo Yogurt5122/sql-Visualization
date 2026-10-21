@@ -42,6 +42,7 @@ export const CORPUS: CorpusCase[] = [
     dialect: 'mysql',
     mode: 'semantic',
     minStatements: 1,
+    expectedTables: 2,
     note: 'MySQL UNION ALL',
   },
   {
@@ -129,6 +130,7 @@ export const CORPUS: CorpusCase[] = [
     dialect: 'mysql',
     mode: 'semantic',
     minStatements: 1,
+    expectedTables: 2,
     expectRules: ['RSK-08'],
     note: 'MySQL UNION 去重',
   },
@@ -237,6 +239,22 @@ export const CORPUS: CorpusCase[] = [
     mode: 'semantic',
     minStatements: 1,
     note: 'SQL Server DATEADD',
+  },
+  {
+    file: 'tsql_window.sql',
+    dialect: 'tsql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'SQL Server TOP + 窗口函数',
+  },
+  {
+    file: 'tsql_case.sql',
+    dialect: 'tsql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'SQL Server CASE + GROUP BY',
   },
   {
     file: 'dm8_rownum.sql',

@@ -352,6 +352,12 @@ export default function App() {
             </div>
           )}
 
+          {analysis.statements.some((statement) => statement.kind !== 'select') ? (
+            <div className="dml-note">
+              DML 暂只做结构解释，不生成关系图 / 字段血缘；导出不在 M3。
+            </div>
+          ) : null}
+
           <div className="metrics" role="list">
             <div className="metric" role="listitem">
               <span className="metric-value">{analysis.statements.length}</span>
@@ -530,7 +536,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.8
+          左侧色条对应子句 · 点击行可定位 · v0.3.9
         </span>
       </footer>
     </div>

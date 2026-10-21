@@ -351,6 +351,7 @@ function collectSemanticTables(query: SemanticQuery, result: Set<string>): void 
   for (const table of query.tables) result.add(table.toLowerCase());
   for (const cte of query.ctes) collectSemanticTables(cte.query, result);
   for (const subquery of query.subqueries) collectSemanticTables(subquery, result);
+  for (const branch of query.branches) collectSemanticTables(branch, result);
 }
 
 function semanticDepth(query: SemanticQuery): number {
@@ -358,6 +359,9 @@ function semanticDepth(query: SemanticQuery): number {
   for (const cte of query.ctes) depth = Math.max(depth, semanticDepth(cte.query));
   for (const subquery of query.subqueries) {
     depth = Math.max(depth, semanticDepth(subquery));
+  }
+  for (const branch of query.branches) {
+    depth = Math.max(depth, semanticDepth(branch));
   }
   return depth;
 }
