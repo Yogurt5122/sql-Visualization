@@ -3,7 +3,7 @@ import { analyzeSql } from './core/explain';
 import { buildFlow, type FlowStep } from './core/flow';
 import { buildStructure, type StructureNode } from './core/structure';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
-import type { Clause, Dialect, Issue } from './core/types';
+import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
 import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
@@ -26,17 +26,38 @@ WHERE e.dept_id(+) = d.dept_id
   AND ROWNUM <= 100
 ORDER BY e.hire_date DESC`;
 
+const SAMPLE_MYBATIS = `<select id="queryUser" resultType="User">
+  SELECT u.id, u.name, u.status
+  FROM sys_user u
+  <where>
+    <if test="status != null"> AND u.status = #{status} </if>
+    <if test="name != null"> AND u.name LIKE CONCAT('%', #{name}, '%') </if>
+  </where>
+  ORDER BY u.id DESC
+</select>`;
+
 let scrollNonce = 0;
 
+function initialSql(): string {
+  const sample = new URLSearchParams(window.location.search).get('sample');
+  if (sample === 'mybatis') return SAMPLE_MYBATIS;
+  if (sample === 'dm8') return SAMPLE_DM8;
+  return SAMPLE_MYSQL;
+}
+
 export default function App() {
-  const [sql, setSql] = useState(SAMPLE_MYSQL);
+  const [sql, setSql] = useState(initialSql);
   const [dialect, setDialect] = useState<Dialect>('auto');
+  const [mybatisVariant, setMybatisVariant] = useState<MybatisVariant>('all');
   const [activeLine, setActiveLine] = useState(1);
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
 
-  const analysis = useMemo(() => analyzeSql(sql, dialect), [sql, dialect]);
+  const analysis = useMemo(
+    () => analyzeSql(sql, dialect, { mybatisVariant }),
+    [sql, dialect, mybatisVariant],
+  );
   const clauses = useMemo(
     () => analysis.statements.flatMap((statement) => statement.clauses),
     [analysis],
@@ -147,6 +168,9 @@ export default function App() {
               <button type="button" onClick={() => loadSample(SAMPLE_DM8)}>
                 DM8 示例
               </button>
+              <button type="button" onClick={() => loadSample(SAMPLE_MYBATIS)}>
+                MyBatis 示例
+              </button>
               <button
                 type="button"
                 className="ghost"
@@ -172,7 +196,9 @@ export default function App() {
               {lineCount} 行 · {analysis.dialect ? DIALECT_LABEL[analysis.dialect] : '—'} ·{' '}
               {Math.round(analysis.confidence * 100)}% 置信
             </span>
-            <span className="muted">结构模式</span>
+            <span className="muted">
+              {analysis.mode === 'semantic' ? '语义模式' : '结构模式'}
+            </span>
           </div>
         </section>
 
@@ -189,6 +215,34 @@ export default function App() {
               只做静态结构与语法解释；不连接数据库，不生成执行计划，不保证性能结论。
             </p>
           </div>
+
+          {analysis.preprocess.detected && (
+            <div className="mybatis-banner">
+              <span>
+                检测到 MyBatis 动态 SQL
+                <span className="muted">
+                  {' '}
+                  · {analysis.preprocess.dynamicConditions} 个动态条件
+                </span>
+              </span>
+              <div className="variant-switch" role="group" aria-label="MyBatis 变体">
+                <button
+                  type="button"
+                  className={mybatisVariant === 'all' ? 'is-active' : ''}
+                  onClick={() => setMybatisVariant('all')}
+                >
+                  全保留
+                </button>
+                <button
+                  type="button"
+                  className={mybatisVariant === 'none' ? 'is-active' : ''}
+                  onClick={() => setMybatisVariant('none')}
+                >
+                  全去掉
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="metrics" role="list">
             <div className="metric" role="listitem">
@@ -216,6 +270,14 @@ export default function App() {
             <span role="listitem">嵌套深度 {analysis.metrics.depth}</span>
             <span role="listitem">复杂度 {analysis.metrics.complexity}</span>
           </div>
+
+          {analysis.parseError && (
+            <div className="parse-banner" title={analysis.parseError.message}>
+              语义解析失败
+              {analysis.parseError.line ? `（第 ${analysis.parseError.line} 行）` : ''}
+              ，已回退结构模式。
+            </div>
+          )}
 
           {analysis.warnings.length > 0 && (
             <details className="warnings">
@@ -314,7 +376,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.1.0
+          左侧色条对应子句 · 点击行可定位 · v0.3.1
         </span>
       </footer>
     </div>

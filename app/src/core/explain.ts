@@ -3,6 +3,9 @@ import { scan } from './scanner';
 import { splitStatements } from './splitter';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 import { buildMetrics, buildRelations, mergeMetrics } from './relations';
+import { buildSemanticRelations, parseSemantic } from '../parsers/semantic';
+import { preprocessMyBatis } from '../preprocess/mybatis';
+import type { MybatisVariant } from './types';
 import type {
   Analysis,
   Clause,
@@ -552,24 +555,57 @@ function detectIssues(statement: Statement, dialect: Dialect): Issue[] {
   return issues;
 }
 
-export function analyzeSql(sql: string, selectedDialect: Dialect = 'auto'): Analysis {
-  const guess = resolveDialect(selectedDialect, sql);
-  const { tokens, errors } = scan(sql);
-  const statements = splitStatements(sql, tokens);
+export interface AnalyzeOptions {
+  mybatisVariant?: MybatisVariant;
+}
+
+export function analyzeSql(
+  sql: string,
+  selectedDialect: Dialect = 'auto',
+  options: AnalyzeOptions = {},
+): Analysis {
+  const { sql: cleanSql, ...preprocess } = preprocessMyBatis(
+    sql,
+    options.mybatisVariant ?? 'all',
+  );
+  const guess = resolveDialect(selectedDialect, cleanSql);
+  const { tokens, errors } = scan(cleanSql);
+  const statements = splitStatements(cleanSql, tokens);
   const explanations = buildExplanations(statements);
   const issues = statements.flatMap((statement) => detectIssues(statement, guess.dialect));
-  const relations = statements.map((statement) => buildRelations(statement));
+  const semantic = parseSemantic(cleanSql, guess.dialect);
+
+  let relations: Analysis['relations'];
+  let mode: Analysis['mode'] = 'structural';
+
+  if (semantic.ok && semantic.ast) {
+    const astList = Array.isArray(semantic.ast) ? semantic.ast : [semantic.ast];
+    relations = statements.map((statement, index) => {
+      const ast = astList[index] ?? astList[0];
+      return ast
+        ? buildSemanticRelations(cleanSql, ast, statement.id)
+        : buildRelations(statement);
+    });
+    mode = 'semantic';
+  } else {
+    relations = statements.map((statement) => buildRelations(statement));
+  }
+
   const metrics = mergeMetrics(
     statements.map((statement, index) => buildMetrics(statement, relations[index]!)),
   );
   const summary = buildSummary(statements);
 
-  const warnings = errors.map(
-    (error) => `第 ${error.line} 行第 ${error.col} 列：${error.message}`,
-  );
-  if (statements.length === 0 && sql.trim()) {
+  const warnings = [
+    ...preprocess.warnings,
+    ...errors.map((error) => `第 ${error.line} 行第 ${error.col} 列：${error.message}`),
+  ];
+  if (statements.length === 0 && cleanSql.trim()) {
     warnings.push('没有识别到可分析的 SQL 语句。');
   }
+
+  const parseError =
+    !semantic.ok && guess.dialect !== 'dm8' ? semantic.error : undefined;
 
   return {
     dialect: guess.dialect,
@@ -581,6 +617,8 @@ export function analyzeSql(sql: string, selectedDialect: Dialect = 'auto'): Anal
     metrics,
     summary,
     warnings,
-    mode: 'structural',
+    mode,
+    preprocess,
+    parseError,
   };
 }

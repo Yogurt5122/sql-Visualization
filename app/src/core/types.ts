@@ -141,6 +141,16 @@ export interface AnalysisMetrics {
   complexity: number;
 }
 
+export type MybatisVariant = 'all' | 'none';
+
+export interface PreprocessInfo {
+  detected: boolean;
+  tags: string[];
+  dynamicConditions: number;
+  variant: MybatisVariant;
+  warnings: string[];
+}
+
 export interface Analysis {
   dialect: ResolvedDialect;
   confidence: number;
@@ -151,7 +161,13 @@ export interface Analysis {
   metrics: AnalysisMetrics;
   summary: string;
   warnings: string[];
-  mode: 'structural';
+  mode: 'semantic' | 'structural';
+  preprocess: PreprocessInfo;
+  parseError?: {
+    message: string;
+    line?: number;
+    column?: number;
+  };
 }
 
 export interface ScanError {
