@@ -93,7 +93,7 @@ Hive / ClickHouse 暂不列入首批。
 
 ## 5. 快速开始
 
-要求：Node 20+、pnpm 11+。
+要求：Node 22+、pnpm 11+。
 
 ```bash
 cd app
