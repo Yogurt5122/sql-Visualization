@@ -113,5 +113,45 @@ SELECT id FROM b`,
     expect(analysis.summaries[0]).toContain('a');
     expect(analysis.summaries[1]).toContain('b');
     expect(analysis.relations).toHaveLength(2);
+    expect(analysis.metricsByStatement).toHaveLength(2);
+    expect(analysis.metricsByStatement[0]?.tables).toBe(1);
+    expect(analysis.metricsByStatement[1]?.tables).toBe(1);
+  });
+
+  it('QueryBlock 收集 WHERE / SELECT 子查询、深度和关联标记', () => {
+    const analysis = analyzeSql(
+      `SELECT o.id,
+  (SELECT MAX(u.id) FROM dim_user u WHERE u.id = o.user_id) AS max_id
+FROM dwd_order o
+WHERE o.user_id IN (SELECT id FROM dim_user)`,
+      'mysql',
+    );
+    const model = analysis.semantic[0]!;
+
+    expect(model.subqueries.map((query) => query.origin)).toEqual([
+      'where',
+      'select',
+    ]);
+    expect(model.subqueries[0]?.parentClauseKind).toBe('where');
+    expect(model.subqueries[1]?.parentClauseKind).toBe('select');
+    expect(model.subqueries[1]?.depth).toBe(1);
+    expect(model.subqueries[0]?.correlated).toBe(false);
+    expect(model.subqueries[1]?.correlated).toBe(true);
+  });
+
+  it('QueryBlock 记录 JOIN 键和聚合标记', () => {
+    const analysis = analyzeSql(
+      'SELECT a.status, SUM(b.amount) AS total FROM a JOIN b ON a.status = b.status GROUP BY a.status',
+      'mysql',
+    );
+    const model = analysis.semantic[0]!;
+
+    expect(model.joinKeys[0]).toMatchObject({
+      left: 'a.status',
+      right: 'b.status',
+      operator: '=',
+    });
+    expect(model.hasAggregate).toBe(true);
+    expect(analysis.metrics.depth).toBe(0);
   });
 });

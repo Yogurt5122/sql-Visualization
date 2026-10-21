@@ -1,4 +1,4 @@
-import type { Clause, ClauseKind, Statement } from '../types';
+import type { Clause, ClauseKind, SemanticQuery, Statement } from '../types';
 import { splitTopLevel, stripLeadingKeyword } from '../sql-text';
 
 export function findClause(
@@ -6,6 +6,27 @@ export function findClause(
   kind: ClauseKind,
 ): Clause | undefined {
   return statement.clauses.find((clause) => clause.kind === kind);
+}
+
+export function findClauseAtLine(
+  statement: Statement,
+  line: number,
+): Clause | undefined {
+  return (
+    statement.clauses.find(
+      (clause) => clause.span.startLine <= line && clause.span.endLine >= line,
+    ) ?? statement.clauses[0]
+  );
+}
+
+export function flattenSemanticQueries(
+  query: SemanticQuery,
+  result: SemanticQuery[] = [],
+): SemanticQuery[] {
+  result.push(query);
+  for (const cte of query.ctes) flattenSemanticQueries(cte.query, result);
+  for (const subquery of query.subqueries) flattenSemanticQueries(subquery, result);
+  return result;
 }
 
 export function parseSelectItems(clause: Clause): string[] {

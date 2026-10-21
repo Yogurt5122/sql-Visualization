@@ -67,6 +67,18 @@ JOIN dim_user u
 WHERE o.user_id = u.id
 LIMIT 10;`;
 
+const SAMPLE_QUERYBLOCK = `SELECT
+  o.order_id,
+  (SELECT MAX(r.refund_amount)
+   FROM dwd_refund r
+   WHERE r.order_id = o.order_id) AS max_refund
+FROM dwd_order o
+WHERE o.user_id IN (
+  SELECT user_id
+  FROM dim_user
+  WHERE vip_level >= 3
+);`;
+
 let scrollNonce = 0;
 
 function initialSql(): string {
@@ -76,6 +88,7 @@ function initialSql(): string {
   if (sample === 'multi') return SAMPLE_MULTI;
   if (sample === 'broken') return SAMPLE_BROKEN;
   if (sample === 'risk') return SAMPLE_RISK;
+  if (sample === 'queryblocks') return SAMPLE_QUERYBLOCK;
   if (sample === 'dm8') return SAMPLE_DM8;
   return SAMPLE_MYSQL;
 }
@@ -99,6 +112,8 @@ export default function App() {
     analysis.statements.length > 0
       ? Math.min(activeStatement, analysis.statements.length - 1)
       : 0;
+  const activeMetrics =
+    analysis.metricsByStatement[statementIndex] ?? analysis.metrics;
   const clauses = useMemo(
     () => analysis.statements.flatMap((statement) => statement.clauses),
     [analysis],
@@ -357,11 +372,14 @@ export default function App() {
           </div>
 
           <div className="metric-strip" role="list" aria-label="结构指标">
-            <span role="listitem">表 {analysis.metrics.tables}</span>
-            <span role="listitem">JOIN {analysis.metrics.joins}</span>
-            <span role="listitem">输出 {analysis.metrics.outputs} 列</span>
-            <span role="listitem">嵌套深度 {analysis.metrics.depth}</span>
-            <span role="listitem">复杂度 {analysis.metrics.complexity}</span>
+            {analysis.statements.length > 1 ? (
+              <span className="metric-scope">语句 {statementIndex + 1} 指标</span>
+            ) : null}
+            <span role="listitem">表 {activeMetrics.tables}</span>
+            <span role="listitem">JOIN {activeMetrics.joins}</span>
+            <span role="listitem">输出 {activeMetrics.outputs} 列</span>
+            <span role="listitem">嵌套深度 {activeMetrics.depth}</span>
+            <span role="listitem">复杂度 {activeMetrics.complexity}</span>
           </div>
 
           {analysis.parseError && (
@@ -418,6 +436,9 @@ export default function App() {
             <section className="issues-card">
               <h2>
                 风险体检
+                {analysis.statements.length > 1 ? (
+                  <span className="risk-scope">全文</span>
+                ) : null}
                 <span className="issue-count">{analysis.issues.length}</span>
                 {highRiskCount > 0 && <span className="issue-high">高 {highRiskCount}</span>}
               </h2>
@@ -486,6 +507,7 @@ export default function App() {
             <RelationsView
               relations={analysis.relations}
               statementIndex={statementIndex}
+              semantic={analysis.semantic[statementIndex] ?? null}
               onSelectLine={handleSelectLine}
             />
           )}
@@ -508,7 +530,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.6
+          左侧色条对应子句 · 点击行可定位 · v0.3.7
         </span>
       </footer>
     </div>

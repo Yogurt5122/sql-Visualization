@@ -4,11 +4,13 @@ import type {
   LineageTransform,
   Relations,
   RelationSource,
+  SemanticQuery,
 } from '../core/types';
 
 export interface RelationsViewProps {
   relations: Relations[];
   statementIndex: number;
+  semantic: SemanticQuery | null;
   onSelectLine: (line: number) => void;
 }
 
@@ -193,15 +195,82 @@ function LineageTable({
   );
 }
 
+const ORIGIN_LABEL: Record<NonNullable<SemanticQuery['origin']>, string> = {
+  from: 'FROM 子查询',
+  where: 'WHERE 子查询',
+  having: 'HAVING 子查询',
+  select: 'SELECT 子查询',
+};
+
+interface QueryBlockRow {
+  query: SemanticQuery;
+  depth: number;
+  label: string;
+}
+
+function flattenQueryBlocks(
+  query: SemanticQuery,
+  depth = 0,
+  rows: QueryBlockRow[] = [],
+): QueryBlockRow[] {
+  const label =
+    query.kind === 'main'
+      ? '主查询'
+      : query.kind === 'cte'
+        ? `CTE ${query.name ?? ''}`.trim()
+        : ORIGIN_LABEL[query.origin ?? 'from'];
+  rows.push({ query, depth, label });
+  for (const cte of query.ctes) flattenQueryBlocks(cte.query, depth + 1, rows);
+  for (const subquery of query.subqueries) {
+    flattenQueryBlocks(subquery, depth + 1, rows);
+  }
+  return rows;
+}
+
+function QueryBlockList({
+  semantic,
+  onSelectLine,
+}: {
+  semantic: SemanticQuery;
+  onSelectLine: (line: number) => void;
+}) {
+  const rows = flattenQueryBlocks(semantic);
+
+  return (
+    <div className="query-blocks">
+      {rows.map(({ query, depth, label }) => (
+        <button
+          key={query.id}
+          type="button"
+          className="query-block"
+          style={{ paddingLeft: `${10 + depth * 16}px` }}
+          onClick={() => onSelectLine(query.startLine)}
+        >
+          <span className={`query-block-kind query-block-kind-${query.kind}`}>
+            {query.kind === 'main' ? '主查询' : query.kind === 'cte' ? 'CTE' : '子查询'}
+          </span>
+          <span className="query-block-label">{label}</span>
+          <span className="query-block-meta">
+            L{query.startLine}–{query.endLine} · {query.tables.length} 表 ·{' '}
+            {query.joins} 连接
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function RelationsView({
   relations,
   statementIndex,
+  semantic,
   onSelectLine,
 }: RelationsViewProps) {
-  const [tab, setTab] = useState<'graph' | 'lineage'>('graph');
+  const [tab, setTab] = useState<'graph' | 'lineage' | 'blocks'>('graph');
 
   if (relations.length === 0) return null;
   const current = relations[statementIndex] ?? relations[0]!;
+  const blocks = semantic ? flattenQueryBlocks(semantic) : [];
 
   return (
     <section className="relations-section" aria-label="数据关系">
@@ -211,6 +280,7 @@ export function RelationsView({
           {relations.length > 1 ? `第 ${statementIndex + 1} 条 · ` : ''}
           {current.sources.length} 个数据源 · {current.joins.length} 个连接 ·{' '}
           {current.lineage.length} 个输出列
+          {blocks.length > 1 ? ` · ${blocks.length} 个查询块` : ''}
         </span>
       </div>
 
@@ -233,13 +303,26 @@ export function RelationsView({
         >
           字段血缘 <span>{current.lineage.length}</span>
         </button>
+        {semantic ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'blocks'}
+            className={tab === 'blocks' ? 'is-active' : ''}
+            onClick={() => setTab('blocks')}
+          >
+            查询块 <span>{blocks.length}</span>
+          </button>
+        ) : null}
       </div>
 
       {tab === 'graph' ? (
         <RelationGraph relations={current} onSelectLine={onSelectLine} />
-      ) : (
+      ) : tab === 'lineage' ? (
         <LineageTable relations={current} onSelectLine={onSelectLine} />
-      )}
+      ) : semantic ? (
+        <QueryBlockList semantic={semantic} onSelectLine={onSelectLine} />
+      ) : null}
     </section>
   );
 }

@@ -137,4 +137,40 @@ SELECT * FROM base`;
       'WHERE',
     ]);
   });
+
+  it('FROM 和 WHERE 子查询会挂到各自子句', () => {
+    const sql = `SELECT s.id
+FROM (SELECT id FROM t) s
+WHERE s.id IN (SELECT id FROM u)`;
+    const analysis = analyzeSql(sql, 'mysql');
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const clauses = root.children[0]!.children;
+    const from = clauses.find((child) => child.label === 'FROM')!;
+    const where = clauses.find((child) => child.label === 'WHERE')!;
+
+    expect(from.children.map((child) => child.label)).toEqual(['#1']);
+    expect(where.children).toHaveLength(1);
+    expect(where.children[0]?.label).toBe('#2');
+    expect(where.children[0]?.children.map((child) => child.label)).toEqual([
+      'SELECT',
+      'FROM',
+    ]);
+  });
+
+  it('SELECT 里的标量子查询会挂到 SELECT 并标记关联', () => {
+    const sql = `SELECT o.id,
+  (SELECT MAX(u.id) FROM dim_user u WHERE u.id = o.user_id) AS max_id
+FROM dwd_order o`;
+    const analysis = analyzeSql(sql, 'mysql');
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const select = root.children[0]!.children.find(
+      (child) => child.label === 'SELECT',
+    )!;
+
+    expect(select.children).toHaveLength(1);
+    expect(select.children[0]?.children.map((child) => child.label)).toContain(
+      'WHERE',
+    );
+    expect(analysis.semantic[0]?.subqueries[0]?.correlated).toBe(true);
+  });
 });

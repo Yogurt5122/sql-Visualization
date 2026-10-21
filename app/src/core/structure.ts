@@ -114,6 +114,38 @@ function textHasRef(text: string, refs: string[]): boolean {
   });
 }
 
+function queryHasTable(query: SemanticQuery): boolean {
+  return (
+    query.tables.length > 0 ||
+    query.ctes.some((cte) => queryHasTable(cte.query)) ||
+    query.subqueries.some((subquery) => queryHasTable(subquery))
+  );
+}
+
+function subqueryLabel(query: SemanticQuery): string {
+  const match = /-sub-(\d+)$/.exec(query.id);
+  return match ? `#${match[1]}` : '子查询';
+}
+
+function semanticSubqueryNodes(
+  query: SemanticQuery,
+  parentClauseKind: SemanticQuery['parentClauseKind'],
+): StructureNode[] {
+  return query.subqueries
+    .filter((subquery) => subquery.parentClauseKind === parentClauseKind)
+    .map((subquery) => ({
+      id: subquery.id,
+      kind: 'subquery',
+      label: subqueryLabel(subquery),
+      badge: '子查询',
+      startLine: subquery.startLine,
+      endLine: subquery.endLine,
+      searchText: subquery.clauses.map((clause) => clause.text).join(' '),
+      hasTable: queryHasTable(subquery),
+      children: semanticClauseNodes(subquery),
+    }));
+}
+
 function semanticClauseNodes(query: SemanticQuery): StructureNode[] {
   return query.clauses.map((clause, index) => ({
     id: `${query.id}-clause-${index + 1}`,
@@ -124,7 +156,7 @@ function semanticClauseNodes(query: SemanticQuery): StructureNode[] {
     endLine: clause.endLine,
     searchText: clause.text,
     hasTable: clause.hasTable,
-    children: [],
+    children: semanticSubqueryNodes(query, clause.kind),
   }));
 }
 
@@ -132,7 +164,6 @@ function buildSubqueries(
   clause: Clause,
   refs: string[],
   counter: { count: number },
-  semantic?: SemanticQuery,
 ): StructureNode[] {
   const nodes: StructureNode[] = [];
   const pattern = /\(\s*SELECT\b/gi;
@@ -145,7 +176,6 @@ function buildSubqueries(
 
     const text = clause.text.slice(open, close + 1);
     counter.count += 1;
-    const inner = semantic?.subqueries[counter.count - 1];
 
     nodes.push({
       id: `${clause.id}-sub-${counter.count}`,
@@ -156,7 +186,7 @@ function buildSubqueries(
       endLine: lineAt(clause.span.startLine, clause.text, close + 1),
       searchText: text,
       hasTable: textHasRef(text, refs),
-      children: inner ? semanticClauseNodes(inner) : [],
+      children: [],
     });
 
     pattern.lastIndex = close + 1;
@@ -219,7 +249,9 @@ function buildClauseNode(
     clause.kind === 'select';
 
   const children = canContainSubquery
-    ? buildSubqueries(clause, refs, counter, semantic)
+    ? semantic
+      ? semanticSubqueryNodes(semantic, clause.kind)
+      : buildSubqueries(clause, refs, counter)
     : [];
 
   return {

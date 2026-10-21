@@ -31,12 +31,16 @@ describe('rule engine', () => {
       'RSK-01',
       'RSK-02',
       'RSK-03',
+      'RSK-05',
       'RSK-06',
       'RSK-07',
       'RSK-08',
       'RSK-09',
+      'RSK-10',
       'RSK-11',
+      'RSK-12',
       'RSK-13',
+      'RSK-14',
       'RSK-15',
       'RSK-16',
     ]);
@@ -69,6 +73,11 @@ describe('rule engine', () => {
       negative: 'SELECT id FROM t WHERE created_at >= NOW() - INTERVAL 7 DAY',
     },
     {
+      id: 'RSK-05',
+      positive: 'SELECT a.id FROM t a JOIN t b ON a.id = b.id',
+      negative: 'SELECT a.id FROM t a',
+    },
+    {
       id: 'RSK-06',
       positive: 'SELECT * FROM (SELECT id FROM t ORDER BY id) x',
       negative: 'SELECT * FROM (SELECT id FROM t ORDER BY id LIMIT 5) x',
@@ -89,14 +98,34 @@ describe('rule engine', () => {
       negative: 'SELECT id FROM t WHERE dt >= ?',
     },
     {
+      id: 'RSK-10',
+      positive:
+        'SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT id FROM t) a) b) c',
+      negative: 'SELECT * FROM (SELECT * FROM (SELECT id FROM t) a) b',
+    },
+    {
       id: 'RSK-11',
       positive: 'SELECT id FROM t WHERE id NOT IN (SELECT id FROM u)',
       negative: 'SELECT id FROM t WHERE id IN (SELECT id FROM u)',
     },
     {
+      id: 'RSK-12',
+      positive:
+        'SELECT o.id, (SELECT MAX(u.id) FROM dim_user u WHERE u.id = o.user_id) AS m FROM dwd_order o',
+      negative:
+        'SELECT o.id, (SELECT MAX(u.id) FROM dim_user u) AS m FROM dwd_order o',
+    },
+    {
       id: 'RSK-13',
       positive: 'SELECT id FROM t LIMIT 10',
       negative: 'SELECT id FROM t ORDER BY id LIMIT 10',
+    },
+    {
+      id: 'RSK-14',
+      positive:
+        'SELECT a.status, SUM(b.amount) AS total FROM a JOIN b ON a.status = b.status GROUP BY a.status',
+      negative:
+        'SELECT a.id, SUM(b.amount) AS total FROM a JOIN b ON a.id = b.id GROUP BY a.id',
     },
     {
       id: 'RSK-15',

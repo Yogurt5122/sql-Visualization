@@ -341,6 +341,15 @@ function collectSemanticTables(query: SemanticQuery, result: Set<string>): void 
   for (const subquery of query.subqueries) collectSemanticTables(subquery, result);
 }
 
+function semanticDepth(query: SemanticQuery): number {
+  let depth = query.depth;
+  for (const cte of query.ctes) depth = Math.max(depth, semanticDepth(cte.query));
+  for (const subquery of query.subqueries) {
+    depth = Math.max(depth, semanticDepth(subquery));
+  }
+  return depth;
+}
+
 export function buildMetrics(
   statement: Statement,
   relations: Relations,
@@ -348,7 +357,7 @@ export function buildMetrics(
 ): AnalysisMetrics {
   const text = statement.text;
   const { tokens } = scan(text);
-  const depth = tokens.reduce((max, token) => {
+  const scanDepth = tokens.reduce((max, token) => {
     if (
       token.kind === 'keyword' &&
       token.text.toUpperCase() === 'SELECT' &&
@@ -358,6 +367,7 @@ export function buildMetrics(
     }
     return max;
   }, 0);
+  const depth = semantic ? semanticDepth(semantic) : scanDepth;
   const ctes = new Set(
     relations.sources.filter((source) => source.kind === 'cte').map((source) => source.name),
   ).size;

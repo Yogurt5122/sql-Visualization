@@ -538,8 +538,7 @@ export function analyzeSql(
   const metrics = mergeMetrics(statementMetrics);
   const summaries = statements.map((statement, index) =>
     buildSummary([statement], [semanticModels[index] ?? null]),
-  );
-  const summary = summaries[0] ?? '还没有可分析的 SQL。';
+  );  const summary = summaries[0] ?? '还没有可分析的 SQL。';
 
   const warnings = [
     ...preprocess.warnings,
@@ -559,6 +558,7 @@ export function analyzeSql(
     issues,
     relations,
     metrics,
+    metricsByStatement: statementMetrics,
     semantic: semanticModels,
     summaries,
     summary,

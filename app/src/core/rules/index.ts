@@ -1,27 +1,35 @@
 import type { Issue } from '../types';
 import type { RuleContext, RuleDefinition } from './types';
 import { dm8RownumOrderRule } from './rules/dm8-rownum-order';
+import { deepNestingRule } from './rules/deep-nesting';
 import { distinctWithJoinRule } from './rules/distinct-with-join';
 import { functionOnColumnRule } from './rules/function-on-column';
 import { hardcodedDateRule } from './rules/hardcoded-date';
+import { joinAmplificationRule } from './rules/join-amplification';
 import { limitWithoutOrderRule } from './rules/limit-without-order';
 import { missingJoinConditionRule } from './rules/missing-join-condition';
 import { notInNullRule } from './rules/not-in-null';
 import { repeatedComputationRule } from './rules/repeated-computation';
+import { repeatedTableRule } from './rules/repeated-table';
 import { selectStarRule } from './rules/select-star';
 import { subqueryOrderWithoutLimitRule } from './rules/subquery-order-without-limit';
 import { unionNotAllRule } from './rules/union-not-all';
+import { correlatedSelectRule } from './rules/correlated-select';
 
 export const RULES: RuleDefinition[] = [
   selectStarRule,
   missingJoinConditionRule,
   functionOnColumnRule,
+  repeatedTableRule,
   subqueryOrderWithoutLimitRule,
   distinctWithJoinRule,
   unionNotAllRule,
   hardcodedDateRule,
+  deepNestingRule,
   notInNullRule,
+  correlatedSelectRule,
   limitWithoutOrderRule,
+  joinAmplificationRule,
   repeatedComputationRule,
   dm8RownumOrderRule,
 ];

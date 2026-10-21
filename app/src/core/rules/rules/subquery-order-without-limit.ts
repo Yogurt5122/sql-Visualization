@@ -1,13 +1,5 @@
 import type { RuleDefinition, RuleMatch } from '../types';
-import type { SemanticQuery } from '../../types';
-import { findClause } from '../helpers';
-
-function flattenQueries(query: SemanticQuery, result: SemanticQuery[] = []): SemanticQuery[] {
-  result.push(query);
-  for (const cte of query.ctes) flattenQueries(cte.query, result);
-  for (const subquery of query.subqueries) flattenQueries(subquery, result);
-  return result;
-}
+import { findClause, flattenSemanticQueries } from '../helpers';
 
 export const subqueryOrderWithoutLimitRule: RuleDefinition = {
   id: 'RSK-06',
@@ -22,7 +14,7 @@ export const subqueryOrderWithoutLimitRule: RuleDefinition = {
     if (!semantic) return [];
     const matches: RuleMatch[] = [];
 
-    for (const query of flattenQueries(semantic)) {
+    for (const query of flattenSemanticQueries(semantic)) {
       if (query.kind !== 'subquery') continue;
       if (query.orderBy.length === 0 || query.limit) continue;
 

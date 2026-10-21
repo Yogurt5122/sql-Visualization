@@ -1,5 +1,6 @@
 import { Parser } from 'node-sql-parser';
 import type {
+  ClauseKind,
   JoinType,
   LineageRow,
   LineageTransform,
@@ -9,6 +10,7 @@ import type {
   ResolvedDialect,
   SemanticClause,
   SemanticCte,
+  SemanticJoinKey,
   SemanticQuery,
 } from '../core/types';
 
@@ -535,6 +537,55 @@ function countPredicates(node: AstNode | undefined): number {
   return 1;
 }
 
+function collectSelectNodes(
+  node: unknown,
+  result: AstNode[],
+  seen: WeakSet<object>,
+): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) collectSelectNodes(item, result, seen);
+    return;
+  }
+  if (seen.has(node)) return;
+  seen.add(node);
+
+  const value = node as AstNode;
+  if (value.type === 'select') {
+    result.push(value);
+    return;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'loc' || key === 'as') continue;
+    collectSelectNodes(child, result, seen);
+  }
+}
+
+function columnRefLabel(node: AstNode | undefined): string {
+  if (!node || node.type !== 'column_ref') return '';
+  return node.table ? `${node.table}.${String(node.column)}` : String(node.column);
+}
+
+function collectJoinKeys(node: AstNode | undefined, result: SemanticJoinKey[]): void {
+  if (!node) return;
+  if (node.type === 'binary_expr' && String(node.operator) === '=') {
+    const left = columnRefLabel(node.left);
+    const right = columnRefLabel(node.right);
+    if (left && right) {
+      result.push({ left, right, operator: '=', line: lineOf(node) });
+    }
+  }
+  collectJoinKeys(node.left, result);
+  collectJoinKeys(node.right, result);
+}
+
+function isCorrelated(ast: AstNode, parentKeys: Set<string>): boolean {
+  return collectRefs(ast).some(
+    (ref) => Boolean(ref.table && parentKeys.has(ref.table.toLowerCase())),
+  );
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -645,6 +696,10 @@ export function buildSemanticQuery(
   kind: 'main' | 'cte' | 'subquery' = 'main',
   name?: string,
   scopeCtes?: Set<string>,
+  depth = 0,
+  origin?: SemanticQuery['origin'],
+  parentClauseKind?: ClauseKind,
+  parentId?: string,
 ): SemanticQuery {
   const root = (ast ?? {}) as AstNode;
   const startLine = lineOf(root);
@@ -678,7 +733,31 @@ export function buildSemanticQuery(
 
   const sources: RelationSource[] = [];
   const subqueries: SemanticQuery[] = [];
+  const pending: Array<{ query: SemanticQuery; ast: AstNode }> = [];
   const fromItems = root.from ?? [];
+  const seen = new WeakSet<object>();
+
+  const addSubquery = (
+    subAst: AstNode,
+    alias: string | undefined,
+    subOrigin: SemanticQuery['origin'],
+    subParentKind: ClauseKind,
+  ) => {
+    const query = buildSemanticQuery(
+      sql,
+      subAst,
+      `${idPrefix}-sub-${subqueries.length + 1}`,
+      'subquery',
+      alias,
+      visibleCtes,
+      depth + 1,
+      subOrigin,
+      subParentKind,
+      idPrefix,
+    );
+    subqueries.push(query);
+    pending.push({ query, ast: subAst });
+  };
 
   fromItems.forEach((item, index) => {
     const alias = aliasOf(item.as);
@@ -698,8 +777,8 @@ export function buildSemanticQuery(
 
     if (item.expr?.ast) nested = item.expr.ast;
     else if (item.table && typeof item.table === 'object') nested = item.table;
-
     if (!nested) return;
+
     sources.push({
       id: `${idPrefix}-sem-src-${index + 1}`,
       name: '子查询',
@@ -707,17 +786,46 @@ export function buildSemanticQuery(
       kind: 'subquery',
       line,
     });
-    subqueries.push(
-      buildSemanticQuery(
-        sql,
-        nested,
-        `${idPrefix}-sub-${subqueries.length + 1}`,
-        'subquery',
-        alias,
-        visibleCtes,
-      ),
-    );
+    seen.add(nested);
+    addSubquery(nested, alias, 'from', item.join ? 'join' : 'from');
   });
+
+  const addExpressionSubqueries = (
+    node: unknown,
+    subOrigin: SemanticQuery['origin'],
+    subParentKind: ClauseKind,
+  ) => {
+    const found: AstNode[] = [];
+    collectSelectNodes(node, found, seen);
+    for (const subAst of found) {
+      addSubquery(subAst, undefined, subOrigin, subParentKind);
+    }
+  };
+
+  addExpressionSubqueries(root.where, 'where', 'where');
+  addExpressionSubqueries(root.having, 'having', 'having');
+  for (const column of root.columns ?? []) {
+    addExpressionSubqueries(column.expr, 'select', 'select');
+  }
+  for (const item of fromItems) {
+    if (item.join && item.on) {
+      addExpressionSubqueries(item.on, 'from', 'join');
+    }
+  }
+
+  const parentKeys = new Set<string>();
+  for (const source of sources) {
+    parentKeys.add(source.name.toLowerCase());
+    if (source.alias) parentKeys.add(source.alias.toLowerCase());
+  }
+  for (const item of pending) {
+    item.query.correlated = isCorrelated(item.ast, parentKeys);
+  }
+
+  const joinKeys: SemanticJoinKey[] = [];
+  for (const item of fromItems) {
+    if (item.join && item.on) collectJoinKeys(item.on, joinKeys);
+  }
 
   const tables = [
     ...new Set(
@@ -726,16 +834,26 @@ export function buildSemanticQuery(
         .map((source) => source.name),
     ),
   ];
+  const clauses = buildSemanticClauses(sql, root, tables);
+  const hasAggregate = /\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(
+    clauses.map((clause) => clause.text).join(' '),
+  );
   const limitValue = root.limit?.value?.[0]?.value;
 
   return {
     id: idPrefix,
     kind,
     name,
+    origin,
+    parentId,
+    parentClauseKind,
+    depth,
     startLine,
     endLine,
     sources,
     joins: fromItems.filter((item) => item.join).length,
+    joinKeys,
+    hasAggregate,
     whereCount: countPredicates(root.where),
     hasHaving: Boolean(root.having),
     groupBy: (root.groupby?.columns ?? []).map((column) =>
@@ -748,7 +866,7 @@ export function buildSemanticQuery(
     limit: limitValue != null ? String(limitValue) : undefined,
     outputCount: root.columns?.length ?? 0,
     tables,
-    clauses: buildSemanticClauses(sql, root, tables),
+    clauses,
     ctes,
     subqueries,
   };

@@ -172,14 +172,28 @@ export interface SemanticCte {
   query: SemanticQuery;
 }
 
+export interface SemanticJoinKey {
+  left: string;
+  right: string;
+  operator: string;
+  line: number;
+}
+
 export interface SemanticQuery {
   id: string;
   kind: 'main' | 'cte' | 'subquery';
   name?: string;
+  origin?: 'from' | 'where' | 'having' | 'select';
+  parentId?: string;
+  parentClauseKind?: ClauseKind;
+  correlated?: boolean;
+  depth: number;
   startLine: number;
   endLine: number;
   sources: RelationSource[];
   joins: number;
+  joinKeys: SemanticJoinKey[];
+  hasAggregate: boolean;
   whereCount: number;
   hasHaving: boolean;
   groupBy: string[];
@@ -200,6 +214,7 @@ export interface Analysis {
   issues: Issue[];
   relations: Relations[];
   metrics: AnalysisMetrics;
+  metricsByStatement: AnalysisMetrics[];
   semantic: Array<SemanticQuery | null>;
   summaries: string[];
   summary: string;
