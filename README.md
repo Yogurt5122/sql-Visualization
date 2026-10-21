@@ -109,7 +109,7 @@ pnpm dev              # http://localhost:5173
 | `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源 |
 | `pnpm preview` | 预览生产构建 |
 
-在线演示：<https://yogurt5122.github.io/sql-xray/>（首次部署后生效）
+在线演示：<https://yogurt5122.github.io/sql-xray/>
 
 ## 6. 隐私
 
