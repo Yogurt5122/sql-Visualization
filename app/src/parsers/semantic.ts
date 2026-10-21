@@ -73,7 +73,7 @@ interface AstNode {
   on?: AstNode;
   expr?: AstNode;
   ast?: AstNode;
-  stmt?: { ast?: AstNode };
+  stmt?: { ast?: AstNode } | AstNode;
   columns?: AstNode[];
   from?: AstNode[];
   name?: string | { value?: string };
@@ -87,7 +87,10 @@ interface AstNode {
   groupby?: { columns?: AstNode[] };
   orderby?: Array<{ expr?: AstNode; type?: string }>;
   limit?: { value?: Array<{ value?: unknown }> };
-  with?: Array<{ name?: AstNode['name']; stmt?: { ast?: AstNode } }>;
+  with?: Array<{
+    name?: AstNode['name'];
+    stmt?: { ast?: AstNode } | AstNode;
+  }>;
   [key: string]: unknown;
 }
 
@@ -108,6 +111,14 @@ function aliasOf(value: AstNode['as']): string | undefined {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object' && typeof value.value === 'string') return value.value;
   return undefined;
+}
+
+function cteBody(cte: {
+  stmt?: { ast?: AstNode } | AstNode;
+}): AstNode | undefined {
+  const stmt = cte.stmt;
+  if (!stmt) return undefined;
+  return (stmt as { ast?: AstNode }).ast ?? (stmt as AstNode);
 }
 
 function nameOf(value: AstNode['name']): string | undefined {
@@ -202,7 +213,7 @@ export function buildSemanticRelations(
   if (Array.isArray(root.with)) {
     for (const cte of root.with as AstNode[]) {
       const name = nameOf(cte.name);
-      const body = cte.stmt?.ast;
+      const body = cteBody(cte);
       if (!name) continue;
       cteNames.add(name.toLowerCase());
       if (body) cteMap.set(name.toLowerCase(), body);
@@ -633,16 +644,25 @@ export function buildSemanticQuery(
   idPrefix: string,
   kind: 'main' | 'cte' | 'subquery' = 'main',
   name?: string,
+  scopeCtes?: Set<string>,
 ): SemanticQuery {
   const root = (ast ?? {}) as AstNode;
   const startLine = lineOf(root);
   const endLine = endLineOf(root);
 
+  const visibleCtes = new Set(scopeCtes ?? []);
+  if (kind === 'main' && Array.isArray(root.with)) {
+    for (const cte of root.with) {
+      const cteName = nameOf(cte.name);
+      if (cteName) visibleCtes.add(cteName.toLowerCase());
+    }
+  }
+
   const ctes: SemanticCte[] = [];
   if (kind === 'main' && Array.isArray(root.with)) {
     root.with.forEach((cte, index) => {
       const cteName = nameOf(cte.name) ?? `cte_${index + 1}`;
-      const body = cte.stmt?.ast;
+      const body = cteBody(cte);
       if (!body) return;
       const query = buildSemanticQuery(
         sql,
@@ -650,12 +670,12 @@ export function buildSemanticQuery(
         `${idPrefix}-cte-${index + 1}`,
         'cte',
         cteName,
+        visibleCtes,
       );
       ctes.push({ name: cteName, tables: query.tables, query });
     });
   }
 
-  const cteNames = new Set(ctes.map((cte) => cte.name.toLowerCase()));
   const sources: RelationSource[] = [];
   const subqueries: SemanticQuery[] = [];
   const fromItems = root.from ?? [];
@@ -670,7 +690,7 @@ export function buildSemanticQuery(
         id: `${idPrefix}-sem-src-${index + 1}`,
         name: item.table,
         alias,
-        kind: cteNames.has(item.table.toLowerCase()) ? 'cte' : 'table',
+        kind: visibleCtes.has(item.table.toLowerCase()) ? 'cte' : 'table',
         line,
       });
       return;
@@ -694,6 +714,7 @@ export function buildSemanticQuery(
         `${idPrefix}-sub-${subqueries.length + 1}`,
         'subquery',
         alias,
+        visibleCtes,
       ),
     );
   });

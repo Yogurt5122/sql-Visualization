@@ -12,6 +12,7 @@ export interface AnalysisState {
   runtime: AnalysisRuntime;
   phase: string | null;
   cancel: () => void;
+  retry: () => void;
 }
 
 export function useAnalysis(
@@ -25,12 +26,13 @@ export function useAnalysis(
   const [status, setStatus] = useState<AnalysisStatus>('done');
   const [runtime, setRuntime] = useState<AnalysisRuntime>('main');
   const [phase, setPhase] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
 
   const workerRef = useRef<Worker | null>(null);
   const requestId = useRef(0);
   const timerRef = useRef<number | null>(null);
   const latest = useRef({ sql, dialect, variant });
-  const lastKey = useRef(JSON.stringify([sql, dialect, variant]));
+  const lastKey = useRef(JSON.stringify([sql, dialect, variant, 0]));
 
   const fallback = () => {
     try {
@@ -99,7 +101,7 @@ export function useAnalysis(
 
   useEffect(() => {
     latest.current = { sql, dialect, variant };
-    const key = JSON.stringify([sql, dialect, variant]);
+    const key = JSON.stringify([sql, dialect, variant, revision]);
     if (key === lastKey.current) return;
     lastKey.current = key;
 
@@ -128,7 +130,7 @@ export function useAnalysis(
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sql, dialect, variant]);
+  }, [sql, dialect, variant, revision]);
 
   const cancel = () => {
     if (timerRef.current !== null) {
@@ -142,5 +144,10 @@ export function useAnalysis(
     setRuntime('main');
   };
 
-  return { analysis, status, runtime, phase, cancel };
+  const retry = () => {
+    lastKey.current = '';
+    setRevision((value) => value + 1);
+  };
+
+  return { analysis, status, runtime, phase, cancel, retry };
 }

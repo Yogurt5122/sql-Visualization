@@ -61,6 +61,7 @@
 | --- | --- |
 | 四方言识别 | MySQL / SQL Server / PostgreSQL / DM8，按特征打分，可手动切换 |
 | 语义解析 | MySQL / PostgreSQL / SQL Server 走 AST；解析失败自动回退结构模式，并提示出错行号 |
+| 错误 UX | 失败横幅显示行 / 列 / 原因，可定位出错行、换 MySQL / PostgreSQL / SQL Server 或强制重试 |
 | MyBatis 容错 | 识别 8 个常用标签，等长替换保行号，支持「全保留 / 全去掉」两个变体；`#{}` 转占位符 |
 | Web Worker | 解析在 Worker 中执行，260 ms 防抖、可取消；Worker 失败自动回主线程兜底 |
 | 语句与子句切分 | 顶层 `;` 切语句；`SELECT / FROM / JOIN / WHERE / GROUP BY / HAVING / ORDER BY / LIMIT` 等切子句；字符串、注释、括号内的关键字不误切 |
@@ -75,7 +76,15 @@
 | 风险提示 | 已接入 5 条：`SELECT *`、缺连接条件、`NOT IN` NULL、`LIMIT` 无排序、DM8 `ROWNUM` 排序陷阱 |
 | 双向定位 | 点行 → 高亮对应解释；点解释 → 滚动到原文行 |
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
-| 测试 | 59 个单元测试，畸形输入不崩溃 |
+| 真实语料 | 24 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL |
+| 性能基准 | 2000 行单查询中位数约 102 ms；`pnpm bench` 可复现 |
+
+### 解析失败时
+
+![解析失败提示](assets/preview-error.png)
+
+横幅会给出出错行、列和解析器原因；「定位」跳到出错行，MySQL / PostgreSQL / SQL Server 三个按钮直接换方言重试，最后的「重试」保留当前方言强制重跑。
+| 测试 | 83 个测试：59 个单元测试 + 24 条真实语料 |
 
 ### 规划中
 
@@ -112,12 +121,42 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 59 个单元测试 |
+| `pnpm test` | 83 个测试（59 单元 + 24 语料） |
+| `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 |
 | `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源 |
 | `pnpm preview` | 预览生产构建 |
 
 在线演示：<https://yogurt5122.github.io/sql-xray/>
+
+### 性能基准
+
+环境：Node v24.21.0 · 13th Gen Intel Core i7-13700HX · Windows。  
+命令：`pnpm bench`。每个用例预热 1 次，再跑 5 次取中位数；只测核心 `analyzeSql`，不含浏览器渲染和 Worker 通信。
+
+| 场景 | 实际行数 | 语句数 | 中位数 | 最小 | 最大 |
+| --- | --- | --- | --- | --- | --- |
+| 单查询 100 行目标 | 98 | 1 | 5.1 ms | 3.9 ms | 7.9 ms |
+| 单查询 500 行目标 | 498 | 1 | 17.0 ms | 15.2 ms | 18.0 ms |
+| 单查询 1000 行目标 | 998 | 1 | 39.2 ms | 36.2 ms | 43.1 ms |
+| 单查询 2000 行目标 | 1998 | 1 | 101.7 ms | 98.5 ms | 105.4 ms |
+| 多语句 500 行目标 | 434 | 62 | 10.5 ms | 9.5 ms | 11.2 ms |
+| 多语句 2000 行目标 | 1750 | 250 | 66.7 ms | 64.7 ms | 67.1 ms |
+
+2000 行目标的中位数是 **101.7 ms**，相对 1.5 s 的验收线还有约 14 倍余量。
+
+### 真实语料
+
+`app/tests/corpus/` 下有 **24 条脱敏 SQL**，覆盖：
+
+- MySQL：GMV 聚合、窗口函数、两层 CTE、UNION、CASE、IN 子查询、多表 JOIN、JSON、注释里的分号、派生表、多语句
+- PostgreSQL：DISTINCT ON、FILTER、CTE + INTERVAL、`::` 类型转换、LATERAL
+- SQL Server：TOP、CTE、DATEADD
+- DM8：ROWNUM、`(+)` 外连接
+- MyBatis：`<where>` / `<if>` / `#{}`
+- 坏 SQL：缺右括号、SELECT 列表为空
+
+`corpus.test.ts` 会逐条检查：模式是否符合预期、行号是否落在原文范围内、语句与子句 span 是否自洽、关系 / 总结数量是否和语句数一致、坏 SQL 是否给出行列、派生表和 CTE 的表数是否正确。
 
 ## 6. 隐私
 
@@ -290,6 +329,8 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **语义状态与 MyBatis**：编辑器底部显示「语义模式 / 结构模式」，Worker 返回时追加 `· Worker`；分析中显示阶段文案和「取消」。检测到 MyBatis 标签时，在总结卡下方显示蓝色提示条与「全保留 / 全去掉」切换。
 
+**错误提示**：解析失败时在指标条下方显示黄色横幅，包含出错行 / 列 / 解析器原因；右侧提供「定位」「MySQL / PostgreSQL / SQL Server 重试」「重试」。结构模式结果继续展示，不遮挡主流程。
+
 ## 8. 路线图
 
 | 阶段 | 主题 | 内容 | 状态 |
@@ -322,18 +363,21 @@ sql-xray/
 ├─ README.md                 # 本文档
 ├─ LICENSE                   # MIT
 ├─ assets/preview.png        # 界面截图
-├─ .github/workflows/        # CI + Pages 部署
+├─ assets/preview-error.png  # 解析失败提示
 ├─ app/
 │  ├─ src/
-│  │  ├─ core/               # scanner / splitter / 方言 / 类型
-│  │  ├─ parsers/            # 语义解析适配器（M2）
-│  │  ├─ preprocess/         # MyBatis 预处理（M2）
-│  │  ├─ analyze/            # 血缘 / 图 / 指标 / 规则（M3）
-│  │  ├─ explain/            # 人话模板（M2 拆分）
+│  │  ├─ core/               # scanner / splitter / 语义模型 / 关系 / 指标
+│  │  ├─ parsers/            # node-sql-parser 适配
+│  │  ├─ preprocess/         # MyBatis 预处理
+│  │  ├─ hooks/              # useAnalysis（Worker 调度 / 取消 / 重试）
+│  │  ├─ workers/            # 分析 Worker + 消息协议
 │  │  └─ ui/                 # 编辑器 / 解释列表 / 主页面
 │  ├─ tests/                 # 单元测试
-│  └─ scripts/               # 构建产物隐私检查
-└─ dist/                     # 构建产物（不提交）
+│  │  └─ corpus/             # 24 条脱敏 SQL 语料
+│  ├─ benchmark/             # 性能基准
+│  ├─ scripts/               # 构建产物隐私检查
+│  └─ dist/                  # 构建产物（不提交）
+└─ .github/workflows/        # CI + Pages 部署
 ```
 
 ## 11. 部署

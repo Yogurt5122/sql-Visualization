@@ -384,12 +384,62 @@ button {
 }
 
 .parse-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 12px;
   border: 1px solid #fde68a;
   border-radius: 9px;
   background: #fffbeb;
   color: #92400e;
-  padding: 7px 12px;
+  padding: 9px 12px;
   font-size: 12px;
+}
+
+.parse-banner-body {
+  min-width: 0;
+}
+
+.parse-banner-body strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.parse-banner-body p {
+  margin: 0;
+  color: #b45309;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.parse-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.parse-actions button {
+  padding: 4px 7px;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  background: #fff;
+  color: #92400e;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.parse-actions button:hover {
+  background: #fef3c7;
+}
+
+.parse-actions button.is-active {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #fff;
 }
 
 .warnings summary {

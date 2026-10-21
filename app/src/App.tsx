@@ -58,6 +58,10 @@ GROUP BY order_id
 ORDER BY total DESC
 LIMIT 20;`;
 
+const SAMPLE_BROKEN = `SELECT
+FROM dwd_order
+WHERE dt = '2024-12-01';`;
+
 let scrollNonce = 0;
 
 function initialSql(): string {
@@ -65,6 +69,7 @@ function initialSql(): string {
   if (sample === 'mybatis') return SAMPLE_MYBATIS;
   if (sample === 'cte') return SAMPLE_CTE;
   if (sample === 'multi') return SAMPLE_MULTI;
+  if (sample === 'broken') return SAMPLE_BROKEN;
   if (sample === 'dm8') return SAMPLE_DM8;
   return SAMPLE_MYSQL;
 }
@@ -79,7 +84,7 @@ export default function App() {
     null,
   );
 
-  const { analysis, status, runtime, phase, cancel } = useAnalysis(
+  const { analysis, status, runtime, phase, cancel, retry } = useAnalysis(
     sql,
     dialect,
     mybatisVariant,
@@ -146,6 +151,20 @@ export default function App() {
     setActiveLine(line);
     requestScroll(line);
   };
+
+  const retryDialect = (next: Dialect) => {
+    if (next === dialect) {
+      retry();
+      return;
+    }
+    setDialect(next);
+  };
+
+  const parseErrorMessage = (() => {
+    if (!analysis.parseError) return '';
+    const value = analysis.parseError.message.replace(/\s+/g, ' ').trim();
+    return value.length > 220 ? `${value.slice(0, 220)}…` : value;
+  })();
 
   const handleSelectIssue = (issue: Issue) => {
     if (!issue.clauseId) return;
@@ -340,10 +359,41 @@ export default function App() {
           </div>
 
           {analysis.parseError && (
-            <div className="parse-banner" title={analysis.parseError.message}>
-              语义解析失败
-              {analysis.parseError.line ? `（第 ${analysis.parseError.line} 行）` : ''}
-              ，已回退结构模式。
+            <div className="parse-banner" role="alert">
+              <div className="parse-banner-body">
+                <strong>语义解析失败，已回退结构模式</strong>
+                <p>
+                  {analysis.parseError.line ? `第 ${analysis.parseError.line} 行` : ''}
+                  {analysis.parseError.column
+                    ? `${analysis.parseError.line ? ' ' : ''}第 ${analysis.parseError.column} 列`
+                    : ''}
+                  {analysis.parseError.line || analysis.parseError.column ? '：' : ''}
+                  {parseErrorMessage || '解析器没有给出具体原因。'}
+                </p>
+              </div>
+              <div className="parse-actions">
+                {analysis.parseError.line ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectLine(analysis.parseError!.line!)}
+                  >
+                    定位第 {analysis.parseError.line} 行
+                  </button>
+                ) : null}
+                {(['mysql', 'postgres', 'tsql'] as const).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={analysis.dialect === id ? 'is-active' : ''}
+                    onClick={() => retryDialect(id)}
+                  >
+                    {DIALECT_LABEL[id]} 重试
+                  </button>
+                ))}
+                <button type="button" onClick={retry}>
+                  重试
+                </button>
+              </div>
             </div>
           )}
 
@@ -445,7 +495,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.4
+          左侧色条对应子句 · 点击行可定位 · v0.3.5
         </span>
       </footer>
     </div>

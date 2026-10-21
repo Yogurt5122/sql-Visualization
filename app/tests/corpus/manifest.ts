@@ -1,0 +1,202 @@
+import type { Dialect } from '../../src/core/types';
+
+export interface CorpusCase {
+  file: string;
+  dialect: Dialect;
+  mode: 'semantic' | 'structural';
+  minStatements: number;
+  expectedTables?: number;
+  expectParseError?: boolean;
+  expectPreprocess?: boolean;
+  note: string;
+}
+
+export const CORPUS: CorpusCase[] = [
+  {
+    file: 'mysql_daily_gmv.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'MySQL 每日 GMV 聚合',
+  },
+  {
+    file: 'mysql_window_rank.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'MySQL 窗口函数取最近 3 单',
+  },
+  {
+    file: 'mysql_cte_chain.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'MySQL 两层 CTE',
+  },
+  {
+    file: 'mysql_union.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'MySQL UNION ALL',
+  },
+  {
+    file: 'mysql_case_when.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'MySQL CASE WHEN + GROUP BY 1',
+  },
+  {
+    file: 'mysql_subquery.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'MySQL IN 子查询',
+  },
+  {
+    file: 'mysql_multi_statement.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 2,
+    note: 'MySQL 多语句',
+  },
+  {
+    file: 'mysql_large_join.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 5,
+    note: 'MySQL 多表 JOIN + LEFT JOIN',
+  },
+  {
+    file: 'mysql_json_extract.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'MySQL JSON 函数',
+  },
+  {
+    file: 'mysql_comments.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'MySQL 注释与字符串里的分号',
+  },
+  {
+    file: 'mysql_derived_agg.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'MySQL 派生表二次聚合',
+  },
+  {
+    file: 'postgres_distinct_on.sql',
+    dialect: 'postgres',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'PostgreSQL DISTINCT ON',
+  },
+  {
+    file: 'postgres_filter.sql',
+    dialect: 'postgres',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'PostgreSQL FILTER 聚合',
+  },
+  {
+    file: 'postgres_cte.sql',
+    dialect: 'postgres',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'PostgreSQL CTE + INTERVAL',
+  },
+  {
+    file: 'postgres_cast.sql',
+    dialect: 'postgres',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'PostgreSQL :: 类型转换',
+  },
+  {
+    file: 'postgres_lateral.sql',
+    dialect: 'postgres',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'PostgreSQL LATERAL 子查询',
+  },
+  {
+    file: 'tsql_top.sql',
+    dialect: 'tsql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'SQL Server TOP + JOIN',
+  },
+  {
+    file: 'tsql_cte.sql',
+    dialect: 'tsql',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'SQL Server CTE + TOP',
+  },
+  {
+    file: 'tsql_dateadd.sql',
+    dialect: 'tsql',
+    mode: 'semantic',
+    minStatements: 1,
+    note: 'SQL Server DATEADD',
+  },
+  {
+    file: 'dm8_rownum.sql',
+    dialect: 'dm8',
+    mode: 'structural',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'DM8 ROWNUM + (+) 外连接',
+  },
+  {
+    file: 'dm8_outer_join.sql',
+    dialect: 'dm8',
+    mode: 'structural',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'DM8 (+) 外连接',
+  },
+  {
+    file: 'mybatis_query.xml',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    expectPreprocess: true,
+    note: 'MyBatis 动态 SQL',
+  },
+  {
+    file: 'broken_missing_paren.sql',
+    dialect: 'mysql',
+    mode: 'structural',
+    minStatements: 1,
+    expectedTables: 1,
+    expectParseError: true,
+    note: '缺失右括号',
+  },
+  {
+    file: 'broken_typo.sql',
+    dialect: 'mysql',
+    mode: 'structural',
+    minStatements: 1,
+    expectedTables: 1,
+    expectParseError: true,
+    note: 'SELECT 列表为空',
+  },
+];

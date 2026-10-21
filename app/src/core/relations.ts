@@ -335,6 +335,12 @@ export function buildRelations(statement: Statement): Relations {
   };
 }
 
+function collectSemanticTables(query: SemanticQuery, result: Set<string>): void {
+  for (const table of query.tables) result.add(table.toLowerCase());
+  for (const cte of query.ctes) collectSemanticTables(cte.query, result);
+  for (const subquery of query.subqueries) collectSemanticTables(subquery, result);
+}
+
 export function buildMetrics(
   statement: Statement,
   relations: Relations,
@@ -356,12 +362,7 @@ export function buildMetrics(
     relations.sources.filter((source) => source.kind === 'cte').map((source) => source.name),
   ).size;
   const semanticTables = new Set<string>();
-  if (semantic) {
-    for (const table of semantic.tables) semanticTables.add(table.toLowerCase());
-    for (const cte of semantic.ctes) {
-      for (const table of cte.tables) semanticTables.add(table.toLowerCase());
-    }
-  }
+  if (semantic) collectSemanticTables(semantic, semanticTables);
   const tables =
     semanticTables.size > 0
       ? semanticTables.size

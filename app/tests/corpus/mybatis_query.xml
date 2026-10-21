@@ -1,0 +1,9 @@
+<select id="queryUser" resultType="User">
+  SELECT u.id, u.name, u.status
+  FROM sys_user u
+  <where>
+    <if test="status != null"> AND u.status = #{status} </if>
+    <if test="name != null"> AND u.name LIKE CONCAT('%', #{name}, '%') </if>
+  </where>
+  ORDER BY u.id DESC
+</select>
