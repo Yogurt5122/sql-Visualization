@@ -26,7 +26,19 @@ jobs:
           node-version: 20
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        shell: bash
+        run: |
+          set +e
+          pnpm install --frozen-lockfile > /tmp/install.log 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            tail -n 20 /tmp/install.log | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            echo "::error::pnpm install exit code ${status}"
+            exit $status
+          fi
+          tail -n 5 /tmp/install.log
 
       - name: Typecheck
         run: pnpm run typecheck
