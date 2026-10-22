@@ -1,7 +1,7 @@
 {
   "name": "sql-xray",
   "private": true,
-  "version": "0.3.9",
+  "version": "0.3.10",
   "type": "module",
   "description": "把屎山 SQL 讲成人话的纯前端工具",
   "license": "MIT",
@@ -25,7 +25,8 @@
     "codemirror": "^6.0.1",
     "node-sql-parser": "^5.4.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "sql-formatter": "^15.9.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

@@ -213,6 +213,18 @@ button {
   color: #1d4ed8;
 }
 
+.format-notice {
+  margin-left: 8px;
+  color: #1d4ed8;
+}
+
+.format-button {
+  border-color: #bfdbfe !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-weight: 600;
+}
+
 .analysis-status button {
   padding: 0;
   border: none;

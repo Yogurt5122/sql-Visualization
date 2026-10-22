@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { buildFlow, type FlowStep } from './core/flow';
 import { buildStructure, type StructureNode } from './core/structure';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
+import { containsMybatisTags, formatSqlResult } from './core/format';
 import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
 import { useAnalysis } from './hooks/useAnalysis';
 import { Editor } from './ui/Editor';
@@ -99,6 +100,7 @@ export default function App() {
   const [mybatisVariant, setMybatisVariant] = useState<MybatisVariant>('all');
   const [activeLine, setActiveLine] = useState(1);
   const [activeStatement, setActiveStatement] = useState(0);
+  const [formatNotice, setFormatNotice] = useState<string | null>(null);
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
@@ -197,8 +199,52 @@ export default function App() {
     setSql(sample);
     setActiveLine(1);
     setActiveStatement(0);
+    setFormatNotice(null);
     requestScroll(1);
   };
+
+  const handleFormat = () => {
+    if (!sql.trim()) {
+      setFormatNotice('没有可美化的 SQL');
+      return;
+    }
+    if (analysis.preprocess.detected || containsMybatisTags(sql)) {
+      setFormatNotice('MyBatis 动态 SQL 暂不美化');
+      return;
+    }
+    const formatted = formatSqlResult(sql, analysis.dialect);
+    if (!formatted.ok) {
+      setFormatNotice('格式化失败，保留原文');
+      return;
+    }
+    if (formatted.sql === sql) {
+      setFormatNotice('已经是格式化后的样子');
+      return;
+    }
+    setSql(formatted.sql);
+    setActiveLine(1);
+    requestScroll(1);
+    setFormatNotice('已美化');
+  };
+
+  useEffect(() => {
+    if (!formatNotice) return;
+    const timer = window.setTimeout(() => setFormatNotice(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [formatNotice]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || !event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'f') return;
+      event.preventDefault();
+      handleFormat();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // 快捷键始终使用当前 SQL / 方言
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sql, analysis]);
 
   return (
     <div className="app">
@@ -251,10 +297,19 @@ export default function App() {
               </button>
               <button
                 type="button"
+                className="format-button"
+                onClick={handleFormat}
+                title="美化 SQL（Shift+Alt+F）"
+              >
+                美化
+              </button>
+              <button
+                type="button"
                 className="ghost"
                 onClick={() => {
                   setSql('');
                   setActiveLine(1);
+                  setFormatNotice(null);
                 }}
               >
                 清空
@@ -273,6 +328,11 @@ export default function App() {
             <span>
               {lineCount} 行 · {analysis.dialect ? DIALECT_LABEL[analysis.dialect] : '—'} ·{' '}
               {Math.round(analysis.confidence * 100)}% 置信
+              {formatNotice ? (
+                <span className="format-notice" role="status">
+                  {formatNotice}
+                </span>
+              ) : null}
             </span>
             <span className="muted">
               {status === 'analyzing' ? (
@@ -536,7 +596,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.9
+          左侧色条对应子句 · 点击行可定位 · v0.3.10
         </span>
       </footer>
     </div>
