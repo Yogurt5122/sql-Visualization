@@ -5,6 +5,7 @@ import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
 import { containsMybatisTags } from './core/mybatis-tags';
 import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
 import { useAnalysis } from './hooks/useAnalysis';
+import { useTheme, type ThemeMode } from './hooks/useTheme';
 import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
@@ -95,6 +96,7 @@ function initialSql(): string {
 }
 
 export default function App() {
+  const { mode: themeMode, setMode: setThemeMode, resolved: theme } = useTheme();
   const [sql, setSql] = useState(initialSql);
   const [dialect, setDialect] = useState<Dialect>('auto');
   const [mybatisVariant, setMybatisVariant] = useState<MybatisVariant>('all');
@@ -288,6 +290,19 @@ export default function App() {
             </select>
           </label>
 
+          <label className="theme-select">
+            <span>主题</span>
+            <select
+              aria-label="主题"
+              value={themeMode}
+              onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+            >
+              <option value="auto">跟随系统</option>
+              <option value="light">亮色</option>
+              <option value="dark">暗色</option>
+            </select>
+          </label>
+
           <span className="local-badge" title="所有分析都在当前浏览器内完成">
             <span className="local-dot" aria-hidden="true" />
             本地运行
@@ -336,6 +351,7 @@ export default function App() {
             onChange={setSql}
             onCursorLine={setActiveLine}
             scrollTarget={scrollTarget}
+            theme={theme}
           />
 
           <div className="pane-foot">
@@ -613,7 +629,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.4.0
+          左侧色条对应子句 · 点击行可定位 · v0.4.1
         </span>
       </footer>
     </div>

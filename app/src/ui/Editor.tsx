@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { basicSetup } from 'codemirror';
 import { sql } from '@codemirror/lang-sql';
-import { EditorState, RangeSetBuilder } from '@codemirror/state';
+import { Compartment, EditorState, RangeSetBuilder } from '@codemirror/state';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import {
   Decoration,
   EditorView,
@@ -9,6 +11,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view';
+import { oneDark } from '@codemirror/theme-one-dark';
 import { scan } from '../core/scanner';
 import { splitStatements } from '../core/splitter';
 
@@ -17,6 +20,7 @@ export interface EditorProps {
   onChange: (value: string) => void;
   onCursorLine: (line: number) => void;
   scrollTarget: { line: number; nonce: number } | null;
+  theme: 'light' | 'dark';
 }
 
 function buildDecorations(view: EditorView): DecorationSet {
@@ -97,9 +101,31 @@ const editorTheme = EditorView.theme({
   },
 });
 
-export function Editor({ value, onChange, onCursorLine, scrollTarget }: EditorProps) {
+const darkHighlight = HighlightStyle.define([
+  { tag: tags.keyword, color: '#c678dd' },
+  { tag: [tags.operator, tags.punctuation], color: '#abb2bf' },
+  { tag: [tags.string, tags.special(tags.string)], color: '#98c379' },
+  { tag: tags.number, color: '#d19a66' },
+  { tag: tags.comment, color: '#7f848e', fontStyle: 'italic' },
+  { tag: [tags.variableName, tags.name], color: '#e6e6e6' },
+  { tag: tags.function(tags.variableName), color: '#61afef' },
+  { tag: tags.typeName, color: '#e5c07b' },
+  { tag: tags.bool, color: '#d19a66' },
+  { tag: tags.null, color: '#d19a66' },
+]);
+
+const darkTheme = [oneDark, syntaxHighlighting(darkHighlight)];
+
+export function Editor({
+  value,
+  onChange,
+  onCursorLine,
+  scrollTarget,
+  theme,
+}: EditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const themeCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onCursorRef = useRef(onCursorLine);
 
@@ -116,6 +142,7 @@ export function Editor({ value, onChange, onCursorLine, scrollTarget }: EditorPr
         basicSetup,
         sql(),
         editorTheme,
+        themeCompartment.current.of(theme === 'dark' ? darkTheme : []),
         clauseBars,
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
@@ -149,6 +176,14 @@ export function Editor({ value, onChange, onCursorLine, scrollTarget }: EditorPr
     // 只在挂载时创建一次；value 的后续变化由下面的 effect 同步
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: themeCompartment.current.reconfigure(theme === 'dark' ? darkTheme : []),
+    });
+  }, [theme]);
 
   useEffect(() => {
     const view = viewRef.current;

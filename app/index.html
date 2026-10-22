@@ -9,6 +9,22 @@
       content="SQL 透视镜：在浏览器本地把复杂的 SQL 拆成子句，用大白话逐句解释。不上传、不入库、不留痕。"
     />
     <meta name="theme-color" content="#ffffff" />
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem('sql-xray-theme');
+          const dark =
+            stored === 'dark' ||
+            (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#0b1220' : '#ffffff');
+        } catch {
+          // 主题偏好不可读时按亮色渲染
+        }
+      })();
+    </script>
     <title>SQL 透视镜 · 把屎山 SQL 讲成人话</title>
   </head>
   <body>

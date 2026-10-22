@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.4.0**：性能与包体优化完成；主包 199.7 KB gzip，parser 只在 Worker / 回退 chunk，formatter 按需加载；规则 17/17，导出后置。
+> 当前 **0.4.1**：暗色模式完成，跟随系统 / 亮 / 暗三档；主包 199.7 KB gzip，parser 只在 Worker / 回退 chunk；规则 17/17，导出后置。
 > 下一步：完整 17 条规则回归；导出后置到最后。
 
 ---
@@ -67,6 +67,7 @@
 | 语句与子句切分 | 顶层 `;` 切语句；`SELECT / FROM / JOIN / WHERE / GROUP BY / HAVING / ORDER BY / LIMIT` 等切子句；字符串、注释、括号内的关键字不误切 |
 | 子句色条 | 编辑器左侧按语义上色，结构在文本里就能看见 |
 | SQL 美化 | 本地 `sql-formatter`：关键字大写、2 空格缩进、保留注释；支持四方言；MyBatis XML 跳过；快捷键 `Shift+Alt+F` |
+| 暗色模式 | 跟随系统 / 亮 / 暗三档；颜色 token + CodeMirror oneDark；SVG、表格、风险卡、MyBatis 提示全适配；只存主题偏好 |
 | 性能 | parser 不进主包，首屏走 Worker；formatter 按需加载；10k 行中位数约 1.8 s |
 | 执行流程 | 按 `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT` 的真实求值顺序展示，点击阶段定位原文 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
@@ -80,7 +81,7 @@
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
 | 真实语料 | 39 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 104 ms；`pnpm bench` 可复现 |
-| 测试 | 140 个测试：101 个单元测试 + 39 条真实语料 |
+| 测试 | 143 个测试：104 个单元测试 + 39 条真实语料 |
 ### 解析失败时
 
 ![解析失败提示](assets/preview-error.png)
@@ -92,6 +93,12 @@
 ![SQL 美化](assets/preview-format.png)
 
 点编辑栏「美化」或按 `Shift+Alt+F`：关键字大写、2 空格缩进、保留注释，改写后的 SQL 会重新走一遍完整分析。MyBatis 动态 SQL 会跳过并提示，避免把 `<if>` / `<where>` 拆坏。
+
+### 暗色模式
+
+![暗色模式](assets/preview-dark.png)
+
+顶栏「主题」支持跟随系统 / 亮 / 暗。只把主题偏好写进 `localStorage`，不写 SQL；CodeMirror、SVG 图、血缘表格、风险卡和子句色条都有独立的暗色配色。
 
 ### 规划中
 
@@ -128,7 +135,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 140 个测试（101 单元 + 39 语料） |
+| `pnpm test` | 143 个测试（104 单元 + 39 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 |
 | `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源 |
@@ -306,7 +313,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 200 KB gzip，`format` 按需 74 KB，Worker 解析包约 516 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 201 KB gzip，`format` 按需 74 KB，Worker 解析包约 516 KB，CSS 5.7 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -332,6 +339,8 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **编辑器工具栏**：示例按钮 / 美化 / 清空；美化快捷键 `Shift+Alt+F`，关键字大写、2 空格缩进、保留注释；检测到 MyBatis 动态 SQL 时跳过并提示。
 
+**暗色模式**：顶栏「主题」选择跟随系统 / 亮 / 暗；`data-theme` 驱动 CSS token，CodeMirror 用 oneDark + 自定义暗色高亮；SVG、表格、风险卡、编辑器子句色条单独适配。只把 `sql-xray-theme` 写进 localStorage，不写 SQL。
+
 **结构树**：位于执行流程下方、数据关系上方；默认展开，可折叠；每层缩进 16px；节点 = 类型徽章 + 名称 + 行号；FROM / WHERE / HAVING / SELECT 子查询和 UNION 分支内部子句由 AST 展开；点击节点跳转原文；顶部搜索框 + 「只看含表」开关；当前光标所在节点高亮。
 
 **数据关系**：位于结构树下方、逐句解释上方；三个页签「表关系 / 字段血缘 / 查询块」。表关系用轻量 SVG：节点 = 表 / CTE / 子查询，边 = 连接类型与条件；字段血缘用表格：输出列 / 来源 / 变换 / 经过 / 行号，来源会递归穿过 CTE；查询块用 SVG 树 + 列表展示主查询 / CTE / 子查询 / UNION 分支，显示行号、物理表数和连接数。
@@ -350,7 +359,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M1 | 最小闭环 | 分句、上色、逐句解释、双向定位 | ✅ v0.1.0 |
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 分支 / CTE 链总结 / 查询块图完成；M3-3 剩 UNION 血缘合并、DML、导出 |
-| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能 / 包体完成） |
+| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能 / 包体、0.4.1 暗色完成） |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 剩余估算约 **40–50 人日**。当前优先补语义 AST 与 MyBatis 容错，再做完整规则与导出。
@@ -376,6 +385,8 @@ sql-xray/
 ├─ assets/preview.png        # 界面截图
 ├─ assets/preview-error.png  # 解析失败提示
 ├─ assets/preview-format.png # SQL 美化
+├─ assets/preview-dark.png   # 暗色模式
+├─ assets/preview-dark-queryblocks.png # 暗色查询块图
 ├─ app/
 │  ├─ src/
 │  │  ├─ core/               # scanner / splitter / 语义模型 / 关系 / 指标
