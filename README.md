@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.4.1**：暗色模式完成，跟随系统 / 亮 / 暗三档；主包 199.7 KB gzip，parser 只在 Worker / 回退 chunk；规则 17/17，导出后置。
+> 当前 **0.4.2**：PWA / 离线完成；manifest、Service Worker 预缓存、安装、断网刷新、更新提示；规则 17/17，导出后置。
 > 下一步：完整 17 条规则回归；导出后置到最后。
 
 ---
@@ -48,8 +48,8 @@
 
 1. **本地优先**
    解析、分析、解释、绘图全部在浏览器完成。服务器只发一次静态文件，没有接口可调，没有地方可写。
-2. **零持久化**
-   SQL 只存在于页面内存。刷新即清空，关标签页即消失。不写 localStorage / IndexedDB / Cookie，只记住主题、方言这类 UI 偏好。
+2. **零 SQL 持久化**
+   SQL 只存在于页面内存。刷新即清空，关标签页即消失。不写 IndexedDB / Cookie；`localStorage` 只存主题偏好，Service Worker 只缓存静态产物，不缓存 SQL。
 3. **渐进降级**
    屎山 SQL 语法千奇百怪，严格解析器一定会失败。**解析失败也必须有用**：退化成「结构模式」，照样能分句、定位、看表、查风险。
 
@@ -69,6 +69,7 @@
 | SQL 美化 | 本地 `sql-formatter`：关键字大写、2 空格缩进、保留注释；支持四方言；MyBatis XML 跳过；快捷键 `Shift+Alt+F` |
 | 暗色模式 | 跟随系统 / 亮 / 暗三档；颜色 token + CodeMirror oneDark；SVG、表格、风险卡、MyBatis 提示全适配；只存主题偏好 |
 | 性能 | parser 不进主包，首屏走 Worker；formatter 按需加载；10k 行中位数约 1.8 s |
+| PWA / 离线 | manifest + Service Worker 预缓存；可安装、断网刷新、更新提示；只缓存静态产物，不缓存 SQL |
 | 执行流程 | 按 `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT` 的真实求值顺序展示，点击阶段定位原文 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
 | 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 血缘递归到物理表并显示经过路径，查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
@@ -81,7 +82,7 @@
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
 | 真实语料 | 39 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 104 ms；`pnpm bench` 可复现 |
-| 测试 | 143 个测试：104 个单元测试 + 39 条真实语料 |
+| 测试 | 145 个测试：106 个单元测试 + 39 条真实语料 |
 ### 解析失败时
 
 ![解析失败提示](assets/preview-error.png)
@@ -100,12 +101,18 @@
 
 顶栏「主题」支持跟随系统 / 亮 / 暗。只把主题偏好写进 `localStorage`，不写 SQL；CodeMirror、SVG 图、血缘表格、风险卡和子句色条都有独立的暗色配色。
 
+### PWA / 离线
+
+Chrome / Edge 点地址栏的安装图标；iOS Safari 用「分享 → 添加到主屏幕」。首次在线打开会预缓存全部静态产物，之后断网刷新仍能分析。
+
+Service Worker 只缓存 app shell、Worker、JS/CSS、图标和 manifest，不缓存 SQL / 分析结果。新版本发布后页面顶部会出现「新版本已就绪」提示，点「刷新更新」才切换。
+
 ### 规划中
 
 | 阶段 | 能力 |
 | --- | --- |
 | M2 | 语义 AST、总结增强、结构树、MyBatis 容错、Web Worker |
-| M3 | 表关系图、字段血缘、17 条风险规则、指标卡、导出、DM8 `(+)` 转连接边 |
+| M3 | 表关系图、字段血缘、17 条风险规则、指标卡、DM8 `(+)` 转连接边 |
 | M4 | 大 SQL 性能、PWA、单文件离线版、暗色模式、正式发布 |
 | V2 | 两版 SQL 对比、MyBatis 完整分支展开、可选 DDL、AI（BYOK） |
 
@@ -135,7 +142,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 143 个测试（104 单元 + 39 语料） |
+| `pnpm test` | 145 个测试（106 单元 + 39 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 |
 | `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源 |
@@ -313,7 +320,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 201 KB gzip，`format` 按需 74 KB，Worker 解析包约 516 KB，CSS 5.7 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 201.4 KB gzip，`format` 按需 74 KB，Worker 解析包约 516 KB，CSS 5.8 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -359,7 +366,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M1 | 最小闭环 | 分句、上色、逐句解释、双向定位 | ✅ v0.1.0 |
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 分支 / CTE 链总结 / 查询块图完成；M3-3 剩 UNION 血缘合并、DML、导出 |
-| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能 / 包体、0.4.1 暗色完成） |
+| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能、0.4.1 暗色、0.4.2 PWA 完成） |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 剩余估算约 **40–50 人日**。当前优先补语义 AST 与 MyBatis 容错，再做完整规则与导出。
@@ -393,13 +400,14 @@ sql-xray/
 │  │  │  └─ rules/           # 规则注册表 + 17 条规则定义
 │  │  ├─ parsers/            # node-sql-parser 适配
 │  │  ├─ preprocess/         # MyBatis 预处理
-│  │  ├─ hooks/              # useAnalysis（Worker 调度 / 取消 / 重试）
+│  │  ├─ hooks/              # useAnalysis / useTheme / usePwa
 │  │  ├─ workers/            # 分析 Worker + 消息协议
 │  │  └─ ui/                 # 编辑器 / 解释列表 / 主页面
+│  ├─ public/                # manifest + PWA 图标
 │  ├─ tests/                 # 单元测试
 │  │  └─ corpus/             # 39 条脱敏 SQL 语料
 │  ├─ benchmark/             # 性能基准
-│  ├─ scripts/               # 构建产物隐私检查
+│  ├─ scripts/               # 隐私检查 + Service Worker 生成
 │  └─ dist/                  # 构建产物（不提交）
 └─ .github/workflows/        # CI + Pages 部署
 ```
@@ -419,6 +427,8 @@ cd app
 pnpm build
 # 把 app/dist/ 整个目录丢给 Nginx / 对象存储 / 内网服务器即可
 ```
+
+构建会同时生成 `dist/sw.js`，并把 `dist/` 里的静态文件写进预缓存列表。部署时要保留 `sw.js`、`manifest.webmanifest` 和 `icons/`；Service Worker 需要 HTTPS（localhost 例外）。
 
 构建使用相对路径（`base: './'`），放在子目录也能正常加载。
 

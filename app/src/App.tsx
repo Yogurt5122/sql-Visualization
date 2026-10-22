@@ -5,6 +5,7 @@ import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
 import { containsMybatisTags } from './core/mybatis-tags';
 import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
 import { useAnalysis } from './hooks/useAnalysis';
+import { usePwa } from './hooks/usePwa';
 import { useTheme, type ThemeMode } from './hooks/useTheme';
 import { Editor } from './ui/Editor';
 import { ClauseList } from './ui/ClauseList';
@@ -96,6 +97,7 @@ function initialSql(): string {
 }
 
 export default function App() {
+  const { updateReady, applyUpdate } = usePwa();
   const { mode: themeMode, setMode: setThemeMode, resolved: theme } = useTheme();
   const [sql, setSql] = useState(initialSql);
   const [dialect, setDialect] = useState<Dialect>('auto');
@@ -309,6 +311,15 @@ export default function App() {
           </span>
         </div>
       </header>
+
+      {updateReady ? (
+        <div className="pwa-update" role="status">
+          <span>新版本已就绪，刷新后启用。</span>
+          <button type="button" onClick={applyUpdate}>
+            刷新更新
+          </button>
+        </div>
+      ) : null}
 
       <main className="layout">
         <section className="pane editor-pane" aria-label="SQL 输入">
@@ -629,7 +640,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.4.1
+          左侧色条对应子句 · 点击行可定位 · v0.4.2
         </span>
       </footer>
     </div>

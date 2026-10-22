@@ -177,6 +177,28 @@ button {
   background: #10b981;
 }
 
+.pwa-update {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+}
+
+.pwa-update button {
+  padding: 3px 9px;
+  border: 1px solid var(--accent-line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--accent-ink);
+  font-size: 11px;
+  cursor: pointer;
+}
+
 /* ---------- 主布局 ---------- */
 .layout {
   flex: 1;
