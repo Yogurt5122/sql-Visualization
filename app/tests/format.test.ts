@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { containsMybatisTags, formatSql } from '../src/core/format';
+import { formatSql } from '../src/core/format';
+import { containsMybatisTags } from '../src/core/mybatis-tags';
 
 describe('formatSql', () => {
   it('识别 MyBatis 标签，普通 SQL 不误判', () => {

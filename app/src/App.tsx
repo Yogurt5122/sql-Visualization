@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildFlow, type FlowStep } from './core/flow';
 import { buildStructure, type StructureNode } from './core/structure';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
-import { containsMybatisTags, formatSqlResult } from './core/format';
+import { containsMybatisTags } from './core/mybatis-tags';
 import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
 import { useAnalysis } from './hooks/useAnalysis';
 import { Editor } from './ui/Editor';
@@ -104,6 +104,8 @@ export default function App() {
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
+  const sqlRef = useRef(sql);
+  sqlRef.current = sql;
 
   const { analysis, status, runtime, phase, cancel, retry } = useAnalysis(
     sql,
@@ -203,28 +205,40 @@ export default function App() {
     requestScroll(1);
   };
 
-  const handleFormat = () => {
-    if (!sql.trim()) {
+  const handleFormat = async () => {
+    const source = sql;
+    if (!source.trim()) {
       setFormatNotice('没有可美化的 SQL');
       return;
     }
-    if (analysis.preprocess.detected || containsMybatisTags(sql)) {
+    if (analysis.preprocess.detected || containsMybatisTags(source)) {
       setFormatNotice('MyBatis 动态 SQL 暂不美化');
       return;
     }
-    const formatted = formatSqlResult(sql, analysis.dialect);
-    if (!formatted.ok) {
+
+    setFormatNotice('正在加载格式化器…');
+    try {
+      const { formatSqlResult } = await import('./core/format');
+      if (sqlRef.current !== source) {
+        setFormatNotice('SQL 已变化，未应用格式化');
+        return;
+      }
+      const formatted = formatSqlResult(source, analysis.dialect);
+      if (!formatted.ok) {
+        setFormatNotice('格式化失败，保留原文');
+        return;
+      }
+      if (formatted.sql === source) {
+        setFormatNotice('已经是格式化后的样子');
+        return;
+      }
+      setSql(formatted.sql);
+      setActiveLine(1);
+      requestScroll(1);
+      setFormatNotice('已美化');
+    } catch {
       setFormatNotice('格式化失败，保留原文');
-      return;
     }
-    if (formatted.sql === sql) {
-      setFormatNotice('已经是格式化后的样子');
-      return;
-    }
-    setSql(formatted.sql);
-    setActiveLine(1);
-    requestScroll(1);
-    setFormatNotice('已美化');
   };
 
   useEffect(() => {
@@ -352,6 +366,9 @@ export default function App() {
         </section>
 
         <section className="pane result-pane" aria-label="分析结果">
+          {status === 'analyzing' && analysis.statements.length === 0 ? (
+            <div className="analysis-loading">正在分析 SQL…</div>
+          ) : null}
           {analysis.statements.length > 1 && (
             <div className="statement-switch" role="tablist" aria-label="语句切换">
               {analysis.statements.map((statement, index) => (
@@ -596,7 +613,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.3.10
+          左侧色条对应子句 · 点击行可定位 · v0.4.0
         </span>
       </footer>
     </div>

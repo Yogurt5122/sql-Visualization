@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { analyzeSql } from '../core/explain';
 import type { Analysis, Dialect, MybatisVariant } from '../core/types';
 import type { AnalyzeRequest, AnalyzeResponse } from '../workers/protocol';
 
@@ -15,35 +14,66 @@ export interface AnalysisState {
   retry: () => void;
 }
 
+function pendingAnalysis(dialect: Dialect, variant: MybatisVariant): Analysis {
+  const resolved = dialect === 'auto' ? 'mysql' : dialect;
+  return {
+    dialect: resolved,
+    confidence: 0,
+    statements: [],
+    explanations: [],
+    issues: [],
+    relations: [],
+    metrics: { tables: 0, joins: 0, outputs: 0, depth: 0, complexity: 0 },
+    metricsByStatement: [],
+    semantic: [],
+    summaries: [],
+    summary: '正在分析 SQL…',
+    warnings: [],
+    mode: 'structural',
+    preprocess: {
+      detected: false,
+      tags: [],
+      dynamicConditions: 0,
+      variant,
+      warnings: [],
+    },
+  };
+}
+
 export function useAnalysis(
   sql: string,
   dialect: Dialect,
   variant: MybatisVariant,
 ): AnalysisState {
   const [analysis, setAnalysis] = useState<Analysis>(() =>
-    analyzeSql(sql, dialect, { mybatisVariant: variant }),
+    pendingAnalysis(dialect, variant),
   );
-  const [status, setStatus] = useState<AnalysisStatus>('done');
+  const [status, setStatus] = useState<AnalysisStatus>('analyzing');
   const [runtime, setRuntime] = useState<AnalysisRuntime>('main');
-  const [phase, setPhase] = useState<string | null>(null);
+  const [phase, setPhase] = useState<string | null>('准备分析');
   const [revision, setRevision] = useState(0);
 
   const workerRef = useRef<Worker | null>(null);
   const requestId = useRef(0);
   const timerRef = useRef<number | null>(null);
   const latest = useRef({ sql, dialect, variant });
-  const lastKey = useRef(JSON.stringify([sql, dialect, variant, 0]));
 
-  const fallback = () => {
+  const fallback = async (id: number) => {
+    const input = { ...latest.current };
     try {
-      const { sql, dialect, variant } = latest.current;
-      setAnalysis(analyzeSql(sql, dialect, { mybatisVariant: variant }));
+      const { analyzeSql } = await import('../core/explain');
+      const result = analyzeSql(input.sql, input.dialect, {
+        mybatisVariant: input.variant,
+      });
+      if (id === requestId.current) setAnalysis(result);
     } catch {
-      // 保留上一次结果，至少不白屏
+      // 保留加载态占位，至少不白屏
     }
-    setStatus('done');
-    setPhase(null);
-    setRuntime('main');
+    if (id === requestId.current) {
+      setStatus('done');
+      setPhase(null);
+      setRuntime('main');
+    }
   };
 
   const ensureWorker = (): Worker | null => {
@@ -71,13 +101,13 @@ export function useAnalysis(
           return;
         }
 
-        fallback();
+        void fallback(message.id);
       };
 
       worker.onerror = () => {
         worker.terminate();
         workerRef.current = null;
-        fallback();
+        void fallback(requestId.current);
       };
 
       workerRef.current = worker;
@@ -101,20 +131,16 @@ export function useAnalysis(
 
   useEffect(() => {
     latest.current = { sql, dialect, variant };
-    const key = JSON.stringify([sql, dialect, variant, revision]);
-    if (key === lastKey.current) return;
-    lastKey.current = key;
-
     setStatus('analyzing');
     setPhase('准备分析');
     requestId.current += 1;
+    const id = requestId.current;
 
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
-      const id = requestId.current;
       const worker = ensureWorker();
       if (!worker) {
-        fallback();
+        void fallback(id);
         return;
       }
       const request: AnalyzeRequest = {
@@ -145,7 +171,6 @@ export function useAnalysis(
   };
 
   const retry = () => {
-    lastKey.current = '';
     setRevision((value) => value + 1);
   };
 

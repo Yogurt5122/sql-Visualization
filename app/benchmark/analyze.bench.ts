@@ -77,7 +77,7 @@ describe('性能基准', () => {
     console.log(`\nNode ${process.version} · ${cpu}`);
     console.log('target lines | actual lines | statements | median ms | min ms | max ms');
 
-    for (const target of [100, 500, 1000, 2000]) {
+    for (const target of [100, 500, 1000, 2000, 5000, 10000]) {
       const { sql, columns, joins, conditions } = buildSingleQuery(target);
       const lines = sql.split('\n').length;
       const timing = measure(sql);

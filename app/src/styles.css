@@ -225,6 +225,15 @@ button {
   font-weight: 600;
 }
 
+.analysis-loading {
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
 .analysis-status button {
   padding: 0;
   border: none;
