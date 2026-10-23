@@ -202,6 +202,7 @@ export interface SemanticQuery {
   orderBy: string[];
   limit?: string;
   outputCount: number;
+  outputNames: string[];
   tables: string[];
   clauses: SemanticClause[];
   ctes: SemanticCte[];

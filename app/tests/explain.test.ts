@@ -33,6 +33,7 @@ describe('analyzeSql', () => {
     const explanation = analysis.explanations.find((item) => item.clauseId === select.id)!;
     expect(explanation.plain).toContain('最终输出 2 列');
     expect(explanation.plain).toContain('行数（cnt）');
+    expect(explanation.plain).toContain('dwd_order.user_id');
   });
 
   it('报出 SELECT * 风险', () => {

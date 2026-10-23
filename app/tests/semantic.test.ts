@@ -220,4 +220,16 @@ SELECT id, total FROM stats`,
     expect(dependency?.condition).toBe('CTE 依赖');
     expect(target?.name).toBe('dwd_order');
   });
+
+  it('SELECT * 的预输出标为全部字段并带来源表', () => {
+    const analysis = analyzeSql(
+      'SELECT * FROM dwd_order o JOIN dim_user u ON u.id = o.user_id',
+      'mysql',
+    );
+    const row = analysis.relations[0]?.lineage[0];
+
+    expect(row?.output).toBe('*');
+    expect(row?.source).toContain('dwd_order');
+    expect(analysis.semantic[0]?.outputNames).toEqual(['*']);
+  });
 });

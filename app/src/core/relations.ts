@@ -129,10 +129,16 @@ function buildLineage(statement: Statement, sources: RelationSource[]): LineageR
     const output = alias ?? compact(expression, 28);
 
     if (expression === '*' || /^[A-Za-z_]\w*\.\*$/.test(expression)) {
+      const starSources = [
+        ...new Set(sources.map((source) => source.name).filter(Boolean)),
+      ];
       return {
         id: `${statement.id}-lineage-${index + 1}`,
         output,
-        source: '全部字段',
+        source:
+          starSources.length > 0
+            ? starSources.map((name) => `${name}.*`).join(' / ')
+            : '全部字段',
         transform: 'unknown',
         line: select.span.startLine,
         confidence: 'unknown',

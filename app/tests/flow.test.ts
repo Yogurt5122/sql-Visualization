@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { analyzeSql } from '../src/core/explain';
 import { buildFlow } from '../src/core/flow';
 import { scan } from '../src/core/scanner';
 import { splitStatements } from '../src/core/splitter';
@@ -61,5 +62,21 @@ describe('buildFlow', () => {
     for (const step of steps) {
       expect(step.clauseIds.length).toBeGreaterThan(0);
     }
+  });
+
+  it('带关系时说明具体表和输出字段，而不是只说取数/计算', () => {
+    const analysis = analyzeSql(
+      'SELECT o.user_id AS uid, o.amount FROM dwd_order o WHERE o.status = 1',
+      'mysql',
+    );
+    const steps = buildFlow(analysis.statements[0]!, analysis.relations[0]);
+    const source = steps.find((step) => step.kind === 'source')!;
+    const select = steps.find((step) => step.kind === 'select')!;
+
+    expect(source.detail).toContain('dwd_order');
+    expect(source.title).toBe('读取表');
+    expect(select.title).toBe('输出字段');
+    expect(select.detail).toContain('uid');
+    expect(select.detail).toContain('amount');
   });
 });

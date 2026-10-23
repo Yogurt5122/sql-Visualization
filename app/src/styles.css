@@ -2176,6 +2176,112 @@ button {
   --clause-color: #f472b6;
 }
 
+/* ---------- 预输出 ---------- */
+.output-preview {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: 230px;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.output-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.output-preview-title {
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+.output-preview-statement,
+.output-preview-count {
+  color: var(--muted);
+}
+
+.output-preview-toggle {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.output-preview-table-wrap {
+  overflow: auto;
+}
+
+.output-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.output-preview-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+}
+
+.output-preview-table th:first-child,
+.output-preview-table td:first-child {
+  width: 38%;
+}
+
+.output-preview-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.output-preview-table tr:last-child td {
+  border-bottom: none;
+}
+
+.output-preview-name {
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.output-preview-source {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.output-preview-unknown {
+  display: block;
+  margin-top: 2px;
+  color: var(--warning-ink);
+  font-size: 10px;
+}
+
+@media (max-width: 640px) {
+  .output-preview {
+    max-height: 180px;
+  }
+}
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 1080px) {
   .layout {

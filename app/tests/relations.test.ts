@@ -100,7 +100,7 @@ WHERE e.org_id = o.id(+)`);
 SELECT * FROM base`);
     expect(relations.sources).toHaveLength(1);
     expect(relations.sources[0]?.kind).toBe('cte');
-    expect(relations.lineage[0]?.source).toBe('全部字段');
+    expect(relations.lineage[0]?.source).toBe('base.*');
     expect(metrics.tables).toBe(0);
   });
 

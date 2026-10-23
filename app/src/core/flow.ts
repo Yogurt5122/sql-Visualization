@@ -1,4 +1,4 @@
-import type { Clause, Statement } from './types';
+import type { Clause, Relations, Statement } from './types';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 
 export type FlowStageKind =
@@ -69,7 +69,10 @@ function countItems(text: string): number {
  *
  * FROM/JOIN → WHERE → GROUP BY → HAVING → 窗口 → SELECT → DISTINCT → ORDER BY → LIMIT
  */
-export function buildFlow(statement: Statement): FlowStep[] {
+export function buildFlow(
+  statement: Statement,
+  relations?: Relations,
+): FlowStep[] {
   const steps: FlowStep[] = [];
   const find = (kind: Clause['kind']): Clause | undefined =>
     statement.clauses.find((clause) => clause.kind === kind);
@@ -85,16 +88,21 @@ export function buildFlow(statement: Statement): FlowStep[] {
 
   if (from) {
     const sourceCount = countItems(stripLeadingKeyword(from.text, 'FROM')) + joins.length;
+    const tableNames = [...new Set((relations?.sources ?? []).map((source) => source.name))];
     const detail =
-      joins.length > 0
-        ? `${sourceCount} 张表 · ${joins.length} 个连接`
-        : `${sourceCount} 张表`;
+      tableNames.length > 0
+        ? `${tableNames.slice(0, 4).join('、')}${tableNames.length > 4 ? '…' : ''}${
+            joins.length > 0 ? ` · ${joins.length} 个连接` : ''
+          }`
+        : joins.length > 0
+          ? `${sourceCount} 张表 · ${joins.length} 个连接`
+          : `${sourceCount} 张表`;
     steps.push(
-      makeStep(statement, 'source', 'FROM / JOIN', '取数', detail, 'source', [from, ...joins]),
+      makeStep(statement, 'source', 'FROM / JOIN', '读取表', detail, 'source', [from, ...joins]),
     );
   } else if (joins.length > 0) {
     steps.push(
-      makeStep(statement, 'source', 'JOIN', '取数', `${joins.length} 个连接`, 'source', joins),
+      makeStep(statement, 'source', 'JOIN', '读取表', `${joins.length} 个连接`, 'source', joins),
     );
   }
 
@@ -105,14 +113,14 @@ export function buildFlow(statement: Statement): FlowStep[] {
   }
 
   if (groupBy) {
-    const count = countItems(stripLeadingKeyword(groupBy.text, 'GROUP BY'));
+    const items = splitTopLevel(stripLeadingKeyword(groupBy.text, 'GROUP BY'), ',');
     steps.push(
       makeStep(
         statement,
         'groupBy',
         'GROUP BY',
         '聚合',
-        `按 ${count} 个字段分组`,
+        `按 ${items.slice(0, 4).join('、')}${items.length > 4 ? '…' : ''} 分组`,
         'aggregate',
         [groupBy],
       ),
@@ -130,19 +138,31 @@ export function buildFlow(statement: Statement): FlowStep[] {
     const hasWindow = /\bOVER\s*\(/i.test(body);
     const hasDistinct = /^DISTINCT\b/i.test(body);
     const columnCount = countItems(body.replace(/^DISTINCT\s+/i, ''));
+    const outputNames = (relations?.lineage ?? [])
+      .map((row) => row.output)
+      .filter((name) => Boolean(name));
+
+    const hasStar = outputNames.some(
+      (name) => name === '*' || /\.\*$/.test(name),
+    );
+    const selectDetail = hasStar
+      ? '输出全部字段（具体列取决于表结构）'
+      : outputNames.length > 0
+        ? `输出 ${outputNames.length} 列：${outputNames.slice(0, 4).join('、')}${
+            outputNames.length > 4 ? '…' : ''
+          }`
+        : `输出 ${columnCount} 列`;
 
     if (hasWindow) {
       steps.push(
-        makeStep(statement, 'window', 'WINDOW', '计算', '在结果集上算窗口函数', 'compute', [
+        makeStep(statement, 'window', 'WINDOW', '窗口计算', '在结果集上算窗口函数', 'compute', [
           select,
         ]),
       );
     }
 
     steps.push(
-      makeStep(statement, 'select', 'SELECT', '计算', `输出 ${columnCount} 列`, 'compute', [
-        select,
-      ]),
+      makeStep(statement, 'select', 'SELECT', '输出字段', selectDetail, 'compute', [select]),
     );
 
     if (hasDistinct) {
@@ -153,11 +173,17 @@ export function buildFlow(statement: Statement): FlowStep[] {
   }
 
   if (orderBy) {
-    const count = countItems(stripLeadingKeyword(orderBy.text, 'ORDER BY'));
+    const items = splitTopLevel(stripLeadingKeyword(orderBy.text, 'ORDER BY'), ',');
     steps.push(
-      makeStep(statement, 'orderBy', 'ORDER BY', '排序', `按 ${count} 个字段排序`, 'sort', [
-        orderBy,
-      ]),
+      makeStep(
+        statement,
+        'orderBy',
+        'ORDER BY',
+        '排序',
+        `按 ${items.slice(0, 4).join('、')}${items.length > 4 ? '…' : ''}`,
+        'sort',
+        [orderBy],
+      ),
     );
   }
 

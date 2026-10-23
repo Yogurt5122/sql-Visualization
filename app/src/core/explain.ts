@@ -12,6 +12,7 @@ import type {
   Clause,
   Dialect,
   Explanation,
+  Relations,
   SemanticQuery,
   Statement,
 } from './types';
@@ -300,11 +301,44 @@ function limitValue(text: string): string {
   return match ? match[1]! : '若干';
 }
 
-function explainClause(clause: Clause): { plain: string; refs: string[] } {
+function explainClause(
+  clause: Clause,
+  relations?: Relations,
+): { plain: string; refs: string[] } {
   const refs = new Set<string>();
 
   switch (clause.kind) {
     case 'select': {
+      const rows = relations?.lineage ?? [];
+      if (rows.length > 0) {
+        const onlyStar =
+          rows.length === 1 &&
+          (rows[0]!.output === '*' || rows[0]!.output.endsWith('.*'));
+        if (onlyStar) {
+          return {
+            plain: `最终输出全部字段，来源是 ${rows[0]!.source}；具体列取决于表结构，展开后才能逐列确认。`,
+            refs: [],
+          };
+        }
+        const described = rows.slice(0, 6).map((row) => {
+          if (row.output === '*' || row.output.endsWith('.*')) {
+            return `全部字段（来源 ${row.source}）`;
+          }
+          if (row.source === '按行计数') {
+            return `行数（${row.output}）`;
+          }
+          if (row.transform === 'aggregate') {
+            return `${row.output}（${row.source} 的聚合）`;
+          }
+          return `${row.output}（来源 ${row.source}）`;
+        });
+        const suffix = rows.length > 6 ? `等 ${rows.length} 列` : '';
+        return {
+          plain: `最终输出 ${rows.length} 列：${described.join('、')}${suffix}。`,
+          refs: [],
+        };
+      }
+
       const items = parseSelectItems(clause);
       const distinct = /^\s*SELECT\s+DISTINCT\b/i.test(clause.text);
       const described = items.map(describeSelectItem).join('、');
@@ -400,11 +434,15 @@ function explainClause(clause: Clause): { plain: string; refs: string[] } {
   }
 }
 
-function buildExplanations(statements: Statement[]): Explanation[] {
+function buildExplanations(
+  statements: Statement[],
+  relations?: Relations[],
+): Explanation[] {
   const result: Explanation[] = [];
-  for (const statement of statements) {
+  for (const [index, statement] of statements.entries()) {
+    const relation = relations?.[index];
     for (const clause of statement.clauses) {
-      const { plain, refs } = explainClause(clause);
+      const { plain, refs } = explainClause(clause, relation);
       result.push({
         clauseId: clause.id,
         plain,
@@ -499,7 +537,6 @@ export function analyzeSql(
   const guess = resolveDialect(selectedDialect, cleanSql);
   const { tokens, errors } = scan(cleanSql);
   const statements = splitStatements(cleanSql, tokens);
-  const explanations = buildExplanations(statements);
   const parsed = parseSemantic(cleanSql, guess.dialect);
 
   let relations: Analysis['relations'];
@@ -523,6 +560,8 @@ export function analyzeSql(
     relations = statements.map((statement) => buildRelations(statement));
   }
 
+  const explanations = buildExplanations(statements, relations);
+
   const statementMetrics = statements.map((statement, index) =>
     buildMetrics(statement, relations[index]!, semanticModels[index] ?? undefined),
   );
@@ -538,7 +577,8 @@ export function analyzeSql(
   const metrics = mergeMetrics(statementMetrics);
   const summaries = statements.map((statement, index) =>
     buildSummary([statement], [semanticModels[index] ?? null]),
-  );  const summary = summaries[0] ?? '还没有可分析的 SQL。';
+  );
+  const summary = summaries[0] ?? '还没有可分析的 SQL。';
 
   const warnings = [
     ...preprocess.warnings,

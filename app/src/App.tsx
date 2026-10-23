@@ -12,6 +12,7 @@ import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
 import { StructureView } from './ui/StructureView';
 import { RelationsView } from './ui/RelationsView';
+import { OutputPreview } from './ui/OutputPreview';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM dwd_order o
@@ -137,9 +138,9 @@ export default function App() {
   );
   const flows = useMemo(
     () =>
-      analysis.statements.map((statement) => ({
+      analysis.statements.map((statement, index) => ({
         statement,
-        steps: buildFlow(statement),
+        steps: buildFlow(statement, analysis.relations[index]),
       })),
     [analysis],
   );
@@ -372,6 +373,12 @@ export default function App() {
             onCursorLine={setActiveLine}
             scrollTarget={scrollTarget}
             theme={theme}
+          />
+
+          <OutputPreview
+            relations={analysis.relations[statementIndex]}
+            statementIndex={statementIndex}
+            statementCount={analysis.statements.length}
           />
 
           <div className="pane-foot">
@@ -649,7 +656,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.4.4
+          左侧色条对应子句 · 点击行可定位 · v0.5.0
         </span>
       </footer>
     </div>

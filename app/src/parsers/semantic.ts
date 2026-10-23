@@ -77,6 +77,7 @@ interface AstNode {
   ast?: AstNode;
   stmt?: { ast?: AstNode } | AstNode;
   columns?: AstNode[];
+  column?: string;
   from?: AstNode[];
   name?: string | { value?: string };
   args?: unknown;
@@ -340,13 +341,28 @@ export function buildSemanticRelations(
     const expr = column.expr;
     const alias = aliasOf(column.as);
     const text = exprText(sql, expr) || alias || '表达式';
-    const output = alias ?? compact(text, 28);
+    const isStar =
+      expr?.type === 'star' ||
+      (expr?.type === 'column_ref' && expr.column === '*');
+    const output = alias ?? (isStar ? '*' : compact(text, 28));
 
-    if (expr?.type === 'star') {
+    if (isStar) {
+      const starSources = [
+        ...new Set(
+          ((root.from as AstNode[] | undefined) ?? [])
+            .map((item) =>
+              typeof item.table === 'string' ? item.table : '子查询',
+            )
+            .filter(Boolean),
+        ),
+      ];
       lineage.push({
         id: `${idPrefix}-sem-lineage-${index + 1}`,
         output,
-        source: '全部字段',
+        source:
+          starSources.length > 0
+            ? starSources.map((name) => `${name}.*`).join(' / ')
+            : '全部字段',
         transform: 'unknown',
         line: nodeLoc(expr).line ?? 1,
         confidence: 'unknown',
@@ -994,6 +1010,17 @@ export function buildSemanticQuery(
     }),
     limit: limitValue != null ? String(limitValue) : undefined,
     outputCount: root.columns?.length ?? 0,
+    outputNames: (root.columns ?? []).map((column) => {
+      const alias = aliasOf(column.as);
+      if (alias) return alias;
+      if (
+        column.expr?.type === 'star' ||
+        (column.expr?.type === 'column_ref' && column.expr.column === '*')
+      ) {
+        return '*';
+      }
+      return columnLabel(sql, column.expr) || '表达式';
+    }),
     tables,
     clauses,
     ctes,
@@ -1086,7 +1113,16 @@ export function summarizeSemantic(query: SemanticQuery): string {
     parts.push('分组后再筛');
   }
   if (query.outputCount > 0) {
-    parts.push(`输出 ${query.outputCount} 列`);
+    const outputNames = query.outputNames.filter((name) => name !== '*');
+    if (outputNames.length > 0) {
+      const visible = outputNames.slice(0, 5).join('、');
+      const suffix = outputNames.length > 5 ? '…' : '';
+      parts.push(`输出 ${query.outputCount} 列：${visible}${suffix}`);
+    } else if (query.outputNames.includes('*')) {
+      parts.push('输出全部字段');
+    } else {
+      parts.push(`输出 ${query.outputCount} 列`);
+    }
   }
   if (query.orderBy.length > 0) {
     parts.push(`按 ${query.orderBy.join('、')}`);
