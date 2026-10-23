@@ -77,6 +77,12 @@ export function useAnalysis(
   };
 
   const ensureWorker = (): Worker | null => {
+    if (
+      import.meta.env.VITE_SINGLE_FILE === '1' ||
+      (typeof window !== 'undefined' && window.location.protocol === 'file:')
+    ) {
+      return null;
+    }
     if (workerRef.current) return workerRef.current;
 
     try {

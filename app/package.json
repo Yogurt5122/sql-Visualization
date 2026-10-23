@@ -1,7 +1,7 @@
 {
   "name": "sql-xray",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.4.3",
   "type": "module",
   "description": "把屎山 SQL 讲成人话的纯前端工具",
   "license": "MIT",
@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs",
+    "build:single": "tsc --noEmit && vite build --config vite.config.single.ts && node scripts/inline-single.mjs && node scripts/check-single.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:privacy": "node scripts/check-privacy.mjs",

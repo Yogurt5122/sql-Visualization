@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.4.2**：PWA / 离线完成；manifest、Service Worker 预缓存、安装、断网刷新、更新提示；规则 17/17，导出后置。
+> 当前 **0.4.3**：单文件离线版完成；PWA、暗色、性能优化已就绪；规则 17/17，导出后置。
 > 下一步：完整 17 条规则回归；导出后置到最后。
 
 ---
@@ -70,6 +70,7 @@
 | 暗色模式 | 跟随系统 / 亮 / 暗三档；颜色 token + CodeMirror oneDark；SVG、表格、风险卡、MyBatis 提示全适配；只存主题偏好 |
 | 性能 | parser 不进主包，首屏走 Worker；formatter 按需加载；10k 行中位数约 1.8 s |
 | PWA / 离线 | manifest + Service Worker 预缓存；可安装、断网刷新、更新提示；只缓存静态产物，不缓存 SQL |
+| 单文件离线 | `pnpm build:single` 生成一个 HTML；双击 `file://` 打开；Worker 不可用时自动走主线程 |
 | 执行流程 | 按 `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT` 的真实求值顺序展示，点击阶段定位原文 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
 | 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 血缘递归到物理表并显示经过路径，查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
@@ -106,6 +107,17 @@
 Chrome / Edge 点地址栏的安装图标；iOS Safari 用「分享 → 添加到主屏幕」。首次在线打开会预缓存全部静态产物，之后断网刷新仍能分析。
 
 Service Worker 只缓存 app shell、Worker、JS/CSS、图标和 manifest，不缓存 SQL / 分析结果。新版本发布后页面顶部会出现「新版本已就绪」提示，点「刷新更新」才切换。
+
+### 单文件离线版
+
+![单文件离线版](assets/preview-single.png)
+
+```bash
+cd app
+pnpm build:single
+```
+
+产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.48 MB，gzip 约 0.79 MB。
 
 ### 规划中
 
@@ -144,8 +156,9 @@ pnpm dev              # http://localhost:5173
 | `pnpm dev` | 本地开发 |
 | `pnpm test` | 145 个测试（106 单元 + 39 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
-| `pnpm build` | 类型检查 + 生产构建 |
-| `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源 |
+| `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
+| `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
+| `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源（含单文件） |
 | `pnpm preview` | 预览生产构建 |
 
 在线演示：<https://yogurt5122.github.io/sql-xray/>
@@ -366,7 +379,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M1 | 最小闭环 | 分句、上色、逐句解释、双向定位 | ✅ v0.1.0 |
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 分支 / CTE 链总结 / 查询块图完成；M3-3 剩 UNION 血缘合并、DML、导出 |
-| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能、0.4.1 暗色、0.4.2 PWA 完成） |
+| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能、0.4.1 暗色、0.4.2 PWA、0.4.3 单文件完成） |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 剩余估算约 **40–50 人日**。当前优先补语义 AST 与 MyBatis 容错，再做完整规则与导出。
@@ -394,6 +407,7 @@ sql-xray/
 ├─ assets/preview-format.png # SQL 美化
 ├─ assets/preview-dark.png   # 暗色模式
 ├─ assets/preview-dark-queryblocks.png # 暗色查询块图
+├─ assets/preview-single.png # 单文件离线版
 ├─ app/
 │  ├─ src/
 │  │  ├─ core/               # scanner / splitter / 语义模型 / 关系 / 指标
@@ -407,8 +421,9 @@ sql-xray/
 │  ├─ tests/                 # 单元测试
 │  │  └─ corpus/             # 39 条脱敏 SQL 语料
 │  ├─ benchmark/             # 性能基准
-│  ├─ scripts/               # 隐私检查 + Service Worker 生成
-│  └─ dist/                  # 构建产物（不提交）
+│  ├─ scripts/               # 隐私检查 + Service Worker / 单文件生成
+│  ├─ dist/                  # 生产构建产物（不提交）
+│  └─ dist-single/           # 单文件产物（不提交）
 └─ .github/workflows/        # CI + Pages 部署
 ```
 
@@ -429,6 +444,8 @@ pnpm build
 ```
 
 构建会同时生成 `dist/sw.js`，并把 `dist/` 里的静态文件写进预缓存列表。部署时要保留 `sw.js`、`manifest.webmanifest` 和 `icons/`；Service Worker 需要 HTTPS（localhost 例外）。
+
+单文件版用 `pnpm build:single`，只产出 `dist-single/sql-xray.html`，可以直接发给别人双击打开，不依赖静态服务器。
 
 构建使用相对路径（`base: './'`），放在子目录也能正常加载。
 

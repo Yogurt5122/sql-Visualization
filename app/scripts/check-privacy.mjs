@@ -1,8 +1,11 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const dist = fileURLToPath(new URL('../dist', import.meta.url));
+const roots = [
+  fileURLToPath(new URL('../dist', import.meta.url)),
+  fileURLToPath(new URL('../dist-single', import.meta.url)),
+].filter((root) => existsSync(root));
 
 const files = [];
 function walk(dir) {
@@ -13,7 +16,7 @@ function walk(dir) {
     else files.push(path);
   }
 }
-walk(dist);
+for (const root of roots) walk(root);
 
 const problems = [];
 

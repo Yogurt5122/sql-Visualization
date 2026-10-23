@@ -5,7 +5,14 @@ export function usePwa() {
   const refreshing = useRef(false);
 
   useEffect(() => {
-    if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+    if (
+      !import.meta.env.PROD ||
+      import.meta.env.VITE_SINGLE_FILE === '1' ||
+      window.location.protocol === 'file:' ||
+      !('serviceWorker' in navigator)
+    ) {
+      return;
+    }
 
     let disposed = false;
     const onControllerChange = () => {
