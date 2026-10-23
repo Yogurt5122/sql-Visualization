@@ -13,6 +13,7 @@ import { FlowView } from './ui/FlowView';
 import { StructureView } from './ui/StructureView';
 import { RelationsView } from './ui/RelationsView';
 import { OutputPreview } from './ui/OutputPreview';
+import { FlowDetail } from './ui/FlowDetail';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM dwd_order o
@@ -115,6 +116,10 @@ export default function App() {
   const [activeLine, setActiveLine] = useState(1);
   const [activeStatement, setActiveStatement] = useState(0);
   const [formatNotice, setFormatNotice] = useState<string | null>(null);
+  const [flowDetail, setFlowDetail] = useState<{
+    step: FlowStep;
+    statementIndex: number;
+  } | null>(null);
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
@@ -176,9 +181,9 @@ export default function App() {
     requestScroll(clause.span.startLine);
   };
 
-  const handleSelectStep = (step: FlowStep) => {
-    setActiveLine(step.startLine);
-    requestScroll(step.startLine);
+  const handleSelectStep = (step: FlowStep, index: number) => {
+    setActiveStatement(index);
+    setFlowDetail({ step, statementIndex: index });
   };
 
   const handleSelectNode = (node: StructureNode) => {
@@ -260,6 +265,10 @@ export default function App() {
     const timer = window.setTimeout(() => setFormatNotice(null), 2200);
     return () => window.clearTimeout(timer);
   }, [formatNotice]);
+
+  useEffect(() => {
+    setFlowDetail(null);
+  }, [sql]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -613,8 +622,8 @@ export default function App() {
                   )}
                   <FlowView
                     steps={flow.steps}
-                    activeStepId={activeStep?.id}
-                    onSelect={handleSelectStep}
+                    activeStepId={flowDetail?.step.id ?? activeStep?.id}
+                    onSelect={(step) => handleSelectStep(step, index)}
                   />
                 </div>
               ))}
@@ -653,10 +662,27 @@ export default function App() {
         </section>
       </main>
 
+      {flowDetail ? (
+        <FlowDetail
+          step={flowDetail.step}
+          statementIndex={flowDetail.statementIndex}
+          statementCount={analysis.statements.length}
+          relations={analysis.relations[flowDetail.statementIndex]}
+          explanations={analysis.explanations}
+          issues={analysis.issues}
+          onClose={() => setFlowDetail(null)}
+          onLocate={() => {
+            setActiveLine(flowDetail.step.startLine);
+            requestScroll(flowDetail.step.startLine);
+            setFlowDetail(null);
+          }}
+        />
+      ) : null}
+
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.5.0
+          左侧色条对应子句 · 点击行可定位 · v0.5.1
         </span>
       </footer>
     </div>

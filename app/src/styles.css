@@ -2282,6 +2282,222 @@ button {
   }
 }
 
+/* ---------- 执行流程详情 ---------- */
+.flow-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.flow-detail-dialog {
+  width: min(640px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.flow-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.flow-detail-badge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--flow-color, var(--accent));
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.flow-detail-heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.flow-detail-heading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.flow-detail-heading p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.flow-detail-close {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.flow-detail-summary {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.flow-detail-block {
+  margin-top: 14px;
+}
+
+.flow-detail-block h4 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.flow-detail-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.flow-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.flow-detail-table th {
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+}
+
+.flow-detail-table td {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.flow-detail-table tr:last-child td {
+  border-bottom: none;
+}
+
+.flow-detail-table code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.flow-detail-explain {
+  margin: 5px 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.flow-detail-issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+}
+
+.flow-detail-issues li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.flow-detail-issues strong {
+  color: var(--risk);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.flow-detail-severity {
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.flow-detail-severity.severity-high {
+  background: var(--risk-soft);
+  color: var(--risk);
+}
+
+.flow-detail-severity.severity-medium,
+.flow-detail-severity.severity-low {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+
+.flow-detail-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.flow-detail-foot button {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.flow-detail-locate {
+  border-color: var(--accent-line) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent-ink) !important;
+}
+
+[data-theme='dark'] .flow-detail-backdrop {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+[data-theme='dark'] .flow-detail-dialog {
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+}
+
+@media (max-width: 640px) {
+  .flow-detail-backdrop {
+    align-items: flex-end;
+    padding: 8px;
+  }
+
+  .flow-detail-dialog {
+    max-height: 86vh;
+    padding: 12px;
+  }
+}
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 1080px) {
   .layout {

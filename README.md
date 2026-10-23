@@ -8,8 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.5.0**：开始精进模式；新增编辑器下方预输出，SELECT 解释到具体字段与来源表；0.5.x 继续细化 JOIN / WHERE / GROUP 等解释。
-> 下一步：0.5.x 解释精进；导出后置到最后。
+> 当前 **0.5.1**：执行流程块改为详情弹窗；预输出在编辑器下方表格；SELECT 解释到具体字段与来源表。
 
 ---
 
@@ -71,7 +70,7 @@
 | 性能 | parser 不进主包，首屏走 Worker；formatter 按需加载；10k 行中位数约 1.8 s |
 | PWA / 离线 | manifest + Service Worker 预缓存；可安装、断网刷新、更新提示；只缓存静态产物，不缓存 SQL |
 | 单文件离线 | `pnpm build:single` 生成一个 HTML；双击 `file://` 打开；Worker 不可用时自动走主线程 |
-| 执行流程 | 按真实求值顺序展示；FROM 阶段列出具体表，SELECT 阶段列出具体字段与别名，不再只说「取数 / 计算」 |
+| 执行流程 | 按真实求值顺序展示；FROM 阶段列出具体表，SELECT 阶段列出具体字段与别名；点流程块打开详情弹窗 |
 | 预输出 | 编辑器下方表格，只列会输出的字段和来源，不展示样例数据；可收起，不遮挡结果区 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
 | 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 血缘递归到物理表并显示经过路径，表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
@@ -111,6 +110,12 @@
 
 编辑器下方「预输出」表格只列会输出的字段和来源表，不展示样例数据；可收起，多语句时跟随当前语句。执行流程的 SELECT 阶段、逐句解释和一句话总结也都会写到具体字段，不再只说「计算 / 取数」。
 
+### 执行流程详情
+
+![执行流程详情](assets/preview-flow-detail.png)
+
+点执行流程里的 SELECT / FROM 块，会打开详情弹窗：SELECT 展示输出字段表和逐句解释，FROM / JOIN 展示读取的表 / CTE / 子查询；底部可「定位原文」。
+
 ### PWA / 离线
 
 Chrome / Edge 点地址栏的安装图标；iOS Safari 用「分享 → 添加到主屏幕」。首次在线打开会预缓存全部静态产物，之后断网刷新仍能分析。
@@ -126,7 +131,7 @@ cd app
 pnpm build:single
 ```
 
-产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.48 MB，gzip 约 0.78 MB。
+产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.49 MB，gzip 约 0.78 MB。
 
 ### 规划中
 
@@ -342,7 +347,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 202.1 KB gzip，`format` 按需 74 KB，Worker 解析包约 517.2 KB，CSS 6.1 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 202.9 KB gzip，`format` 按需 74 KB，Worker 解析包约 517.2 KB，CSS 6.5 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -366,7 +371,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **组件**：Topbar、EditorPane、SummaryCard、MybatisBanner、Metrics、IssueCard、FlowTrack、StructureTree、RelationsView、ClauseList、OutputPreview、StatusBar。
 
-**执行流程与解释**：FROM / JOIN 阶段写具体表名和连接数；WHERE / GROUP BY / ORDER BY 写具体字段；SELECT 阶段写「输出 N 列：字段名」，不再只说「取数 / 计算」。逐句解释的 SELECT 同样带字段 / 别名和来源表。
+**执行流程与解释**：FROM / JOIN 阶段写具体表名和连接数；WHERE / GROUP BY / ORDER BY 写具体字段；SELECT 阶段写「输出 N 列：字段名」，不再只说「取数 / 计算」。点流程块打开详情弹窗，SELECT 给字段表，FROM / JOIN 给数据源表，并带逐句解释和相关风险。
 
 **预输出**：编辑器底部表格，只列输出字段和来源，不展示样例数据；支持收起，多语句时标「语句 N」。
 
@@ -393,7 +398,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 血缘合并 / CTE 图追底 / 查询块图完成；DML 仅结构解释；导出后置 |
 | M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 0.4.0–0.4.4 完成；1.0 发布待 M4-6 |
-| M5 | 精进 | 预输出、解释到字段 / 来源、后续细化 | 进行中（0.5.0 预输出 + SELECT 具体化） |
+| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情弹窗 |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 M4 只剩发布验收；导出仍放在最后，不阻塞 1.0。后续增强见 V2 想法池。
@@ -422,6 +427,7 @@ sql-xray/
 ├─ assets/preview-dark.png   # 暗色模式
 ├─ assets/preview-dark-queryblocks.png # 暗色查询块图
 ├─ assets/preview-output.png # 预输出与字段解释
+├─ assets/preview-flow-detail.png # 执行流程详情
 ├─ assets/preview-single.png # 单文件离线版
 ├─ app/
 │  ├─ src/
