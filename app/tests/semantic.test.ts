@@ -188,4 +188,36 @@ SELECT id, total FROM stats`,
     expect(analysis.summary).toContain('经 paid');
     expect(analysis.metrics.tables).toBe(1);
   });
+
+  it('UNION 分支血缘会并到对应输出列', () => {
+    const analysis = analyzeSql(
+      'SELECT id FROM a UNION ALL SELECT id FROM b',
+      'mysql',
+    );
+    const row = analysis.relations[0]?.lineage[0];
+
+    expect(row?.source).toContain('a.id');
+    expect(row?.source).toContain('分支 1: b.id');
+  });
+
+  it('CTE 关系图补出到底层物理表的依赖边', () => {
+    const analysis = analyzeSql(
+      `WITH paid AS (
+  SELECT id, amount FROM dwd_order
+),
+stats AS (
+  SELECT id, SUM(amount) AS total FROM paid GROUP BY id
+)
+SELECT id, total FROM stats`,
+      'mysql',
+    );
+    const relations = analysis.relations[0]!;
+    const cte = relations.sources.find((source) => source.kind === 'cte');
+    const dependency = relations.dependencies?.find((item) => item.from === cte?.id);
+    const target = relations.sources.find((source) => source.id === dependency?.to);
+
+    expect(cte?.name).toBe('stats');
+    expect(dependency?.condition).toBe('CTE 依赖');
+    expect(target?.name).toBe('dwd_order');
+  });
 });

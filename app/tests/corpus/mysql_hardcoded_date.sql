@@ -1,0 +1,3 @@
+SELECT id
+FROM dwd_order
+WHERE dt BETWEEN '2024-12-01' AND '2024-12-31';

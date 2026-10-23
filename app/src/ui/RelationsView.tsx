@@ -51,10 +51,14 @@ function RelationGraph({
   relations: Relations;
   onSelectLine: (line: number) => void;
 }) {
-  const { sources, joins } = relations;
+  const { sources, joins, dependencies = [] } = relations;
   if (sources.length === 0) {
     return <div className="relations-empty">没有识别到表或数据源。</div>;
   }
+  const edges = [
+    ...joins.map((join) => ({ edge: join, dependency: false })),
+    ...dependencies.map((dependency) => ({ edge: dependency, dependency: true })),
+  ];
 
   const main = sources[0]!;
   const others = sources.slice(1);
@@ -78,9 +82,9 @@ function RelationGraph({
         className="relation-graph"
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`表关系图：${sources.length} 个数据源，${joins.length} 条连接`}
+        aria-label={`表关系图：${sources.length} 个数据源，${edges.length} 条连线`}
       >
-        {joins.map((join) => {
+        {edges.map(({ edge: join, dependency }) => {
           const from = positions.get(join.from);
           const to = positions.get(join.to);
           if (!from || !to) return null;
@@ -90,11 +94,16 @@ function RelationGraph({
           const y2 = to.y + nodeHeight / 2;
           const midX = (x1 + x2) / 2;
           const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+          const label = dependency
+            ? join.condition?.startsWith('UNION')
+              ? 'UNION'
+              : 'CTE'
+            : JOIN_LABEL[join.type];
 
           return (
             <g
               key={join.id}
-              className={`rel-edge rel-edge-${join.type}`}
+              className={`rel-edge rel-edge-${join.type}${dependency ? ' rel-edge-dependency' : ''}`}
               onClick={() => onSelectLine(join.line)}
               role="button"
               tabIndex={0}
@@ -105,7 +114,7 @@ function RelationGraph({
               <path className="rel-edge-hit" d={path} />
               <path className="rel-edge-line" d={path} />
               <text className="rel-edge-label" x={midX} y={(y1 + y2) / 2 - 5} textAnchor="middle">
-                {JOIN_LABEL[join.type]}
+                {label}
               </text>
             </g>
           );
@@ -141,6 +150,7 @@ function RelationGraph({
         <span className="legend-inner">内连接</span>
         <span className="legend-left">左/右连接</span>
         <span className="legend-cross">笛卡尔积 / 隐式</span>
+        <span className="legend-cte">CTE / UNION 依赖</span>
       </div>
     </div>
   );

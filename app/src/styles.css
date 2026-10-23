@@ -1284,6 +1284,11 @@ button {
   stroke-dasharray: 3 3;
 }
 
+.rel-edge-dependency .rel-edge-line {
+  stroke: #7c3aed;
+  stroke-dasharray: 2 3;
+}
+
 .rel-edge-label {
   fill: #64748b;
   font-size: 9px;
@@ -1320,6 +1325,11 @@ button {
 .legend-cross::before {
   border-color: #dc2626 !important;
   border-top-style: dashed !important;
+}
+
+.legend-cte::before {
+  border-color: #7c3aed !important;
+  border-top-style: dotted !important;
 }
 
 .lineage-wrap {
@@ -2012,6 +2022,14 @@ button {
 [data-theme='dark'] .rel-edge-cross .rel-edge-line,
 [data-theme='dark'] .rel-edge-unknown .rel-edge-line {
   stroke: #f87171;
+}
+
+[data-theme='dark'] .rel-edge-dependency .rel-edge-line {
+  stroke: #c4b5fd;
+}
+
+[data-theme='dark'] .legend-cte::before {
+  border-color: #c4b5fd !important;
 }
 
 [data-theme='dark'] .relation-legend {

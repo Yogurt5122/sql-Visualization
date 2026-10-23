@@ -70,6 +70,14 @@ JOIN dim_user u
 WHERE o.user_id = u.id
 LIMIT 10;`;
 
+const SAMPLE_UNION = `SELECT o.order_id, o.pay_amount
+FROM dwd_order o
+WHERE o.dt = '2024-12-01'
+UNION ALL
+SELECT r.order_id, r.refund_amount
+FROM dwd_refund r
+WHERE r.dt = '2024-12-01';`;
+
 const SAMPLE_QUERYBLOCK = `SELECT
   o.order_id,
   (SELECT MAX(r.refund_amount)
@@ -91,6 +99,7 @@ function initialSql(): string {
   if (sample === 'multi') return SAMPLE_MULTI;
   if (sample === 'broken') return SAMPLE_BROKEN;
   if (sample === 'risk') return SAMPLE_RISK;
+  if (sample === 'union') return SAMPLE_UNION;
   if (sample === 'queryblocks') return SAMPLE_QUERYBLOCK;
   if (sample === 'dm8') return SAMPLE_DM8;
   return SAMPLE_MYSQL;
@@ -640,7 +649,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.4.3
+          左侧色条对应子句 · 点击行可定位 · v0.4.4
         </span>
       </footer>
     </div>

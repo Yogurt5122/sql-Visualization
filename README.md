@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.4.3**：单文件离线版完成；PWA、暗色、性能优化已就绪；规则 17/17，导出后置。
+> 当前 **0.4.4**：M3 遗留收尾 + 发布候选；UNION 血缘合并、CTE 图追底层表、规则语料 + high 基线完成；规则 17/17，导出后置。
 > 下一步：完整 17 条规则回归；导出后置到最后。
 
 ---
@@ -73,17 +73,18 @@
 | 单文件离线 | `pnpm build:single` 生成一个 HTML；双击 `file://` 打开；Worker 不可用时自动走主线程 |
 | 执行流程 | 按 `FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT` 的真实求值顺序展示，点击阶段定位原文 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
-| 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 血缘递归到物理表并显示经过路径，查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
+| 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 血缘递归到物理表并显示经过路径，表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
 | 多语句 | 结果区顶部「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 流程 / 解释仍展示全文 |
+| DML | INSERT / UPDATE / DELETE 只做结构解释，不生成关系 / 血缘；导出仍后置 |
 | 结构指标 | 表数、JOIN 数、输出列数、嵌套深度、复杂度；嵌套深度改用 QueryBlock 计算 |
 | 逐句人话解释 | 每个子句一段大白话 + 术语版 + 涉及的表 |
 | 一句话总结 | AST 驱动：解析 CTE 底层表、取数来源、过滤条件、分组、输出列、排序与限条 |
 | 风险提示 | 已接入 17 条：结构 / 性能 / 语义 / DM8 四类；规则注册表 + 置信度 + 去重 + QueryBlock 上下文 |
 | 双向定位 | 点行 → 高亮对应解释；点解释 → 滚动到原文行 |
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
-| 真实语料 | 39 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
+| 真实语料 | 44 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 104 ms；`pnpm bench` 可复现 |
-| 测试 | 145 个测试：106 个单元测试 + 39 条真实语料 |
+| 测试 | 154 个测试：110 个单元测试 + 44 条真实语料 |
 ### 解析失败时
 
 ![解析失败提示](assets/preview-error.png)
@@ -117,7 +118,7 @@ cd app
 pnpm build:single
 ```
 
-产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.48 MB，gzip 约 0.79 MB。
+产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.48 MB，gzip 约 0.78 MB。
 
 ### 规划中
 
@@ -154,7 +155,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 145 个测试（106 单元 + 39 语料） |
+| `pnpm test` | 154 个测试（110 单元 + 44 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
 | `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
@@ -183,7 +184,7 @@ pnpm dev              # http://localhost:5173
 
 ### 真实语料
 
-`app/tests/corpus/` 下有 **39 条脱敏 SQL**，覆盖：
+`app/tests/corpus/` 下有 **44 条脱敏 SQL**，覆盖：
 
 - MySQL：GMV 聚合、窗口函数、两层 CTE、UNION、CASE、IN 子查询、多表 JOIN、JSON、注释里的分号、派生表、多语句、派生表 `ORDER BY`、`DISTINCT` + JOIN、`UNION` 去重、重复表达式、自连接重复表、3 层嵌套、SELECT 相关子查询、低基数列 JOIN + 聚合、隐式类型转换
 - PostgreSQL：DISTINCT ON、FILTER、CTE + INTERVAL、`::` 类型转换、LATERAL
@@ -333,7 +334,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 201.4 KB gzip，`format` 按需 74 KB，Worker 解析包约 516 KB，CSS 5.8 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 201.6 KB gzip，`format` 按需 74 KB，Worker 解析包约 516.6 KB，CSS 5.8 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -363,7 +364,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **结构树**：位于执行流程下方、数据关系上方；默认展开，可折叠；每层缩进 16px；节点 = 类型徽章 + 名称 + 行号；FROM / WHERE / HAVING / SELECT 子查询和 UNION 分支内部子句由 AST 展开；点击节点跳转原文；顶部搜索框 + 「只看含表」开关；当前光标所在节点高亮。
 
-**数据关系**：位于结构树下方、逐句解释上方；三个页签「表关系 / 字段血缘 / 查询块」。表关系用轻量 SVG：节点 = 表 / CTE / 子查询，边 = 连接类型与条件；字段血缘用表格：输出列 / 来源 / 变换 / 经过 / 行号，来源会递归穿过 CTE；查询块用 SVG 树 + 列表展示主查询 / CTE / 子查询 / UNION 分支，显示行号、物理表数和连接数。
+**数据关系**：位于结构树下方、逐句解释上方；三个页签「表关系 / 字段血缘 / 查询块」。表关系用轻量 SVG：节点 = 表 / CTE / 子查询，边 = 连接类型与条件，另有 CTE / UNION 依赖虚线；字段血缘用表格：输出列 / 来源 / 变换 / 经过 / 行号，来源会递归穿过 CTE，UNION 分支按输出列合并并标注「分支 N」；查询块用 SVG 树 + 列表展示主查询 / CTE / 子查询 / UNION 分支，显示行号、物理表数和连接数。
 
 **多语句**：结果区顶部出现「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 执行流程 / 逐句解释仍展示全文。
 
@@ -378,11 +379,11 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M0 | 设计 | 需求、技术方案、交互、路线图 | ✅ |
 | M1 | 最小闭环 | 分句、上色、逐句解释、双向定位 | ✅ v0.1.0 |
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
-| M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 分支 / CTE 链总结 / 查询块图完成；M3-3 剩 UNION 血缘合并、DML、导出 |
-| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能、0.4.1 暗色、0.4.2 PWA、0.4.3 单文件完成） |
+| M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 血缘合并 / CTE 图追底 / 查询块图完成；DML 仅结构解释；导出后置 |
+| M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 进行中（0.4.0 性能、0.4.1 暗色、0.4.2 PWA、0.4.3 单文件、0.4.4 发布候选完成） |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
-剩余估算约 **40–50 人日**。当前优先补语义 AST 与 MyBatis 容错，再做完整规则与导出。
+M4 只剩发布验收；导出仍放在最后，不阻塞 1.0。后续增强见 V2 想法池。
 
 ## 9. 决策记录
 
@@ -419,7 +420,7 @@ sql-xray/
 │  │  └─ ui/                 # 编辑器 / 解释列表 / 主页面
 │  ├─ public/                # manifest + PWA 图标
 │  ├─ tests/                 # 单元测试
-│  │  └─ corpus/             # 39 条脱敏 SQL 语料
+│  │  └─ corpus/             # 44 条脱敏 SQL 语料
 │  ├─ benchmark/             # 性能基准
 │  ├─ scripts/               # 隐私检查 + Service Worker / 单文件生成
 │  ├─ dist/                  # 生产构建产物（不提交）

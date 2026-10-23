@@ -131,6 +131,25 @@ function nameOf(value: AstNode['name']): string | undefined {
   return undefined;
 }
 
+function collectCtePhysicalTables(
+  body: AstNode,
+  cteMap: Map<string, AstNode>,
+  visited: Set<string>,
+  result: Array<{ name: string; line: number }>,
+): void {
+  for (const item of (body.from as AstNode[] | undefined) ?? []) {
+    if (typeof item.table !== 'string') continue;
+    const key = item.table.toLowerCase();
+    const nested = cteMap.get(key);
+    if (nested && !visited.has(key)) {
+      visited.add(key);
+      collectCtePhysicalTables(nested, cteMap, visited, result);
+      continue;
+    }
+    result.push({ name: item.table, line: nodeLoc(item).line ?? 1 });
+  }
+}
+
 function collectRefs(node: unknown, result: Array<{ table?: string; column: string }> = []) {
   if (!node || typeof node !== 'object') return result;
   if (Array.isArray(node)) {
@@ -293,6 +312,28 @@ export function buildSemanticRelations(
     }
   }
 
+  // CTE 追底层表：只把依赖边放在 dependencies，不计入 joins 指标
+  const dependencies: RelationJoin[] = [];
+  for (const source of [...sources]) {
+    if (source.kind !== 'cte') continue;
+    const body = cteMap.get(source.name.toLowerCase());
+    if (!body) continue;
+    const tables: Array<{ name: string; line: number }> = [];
+    collectCtePhysicalTables(body, cteMap, new Set([source.name.toLowerCase()]), tables);
+    for (const table of tables) {
+      const physical = addSource(table.name, undefined, 'table', table.line);
+      if (physical.id === source.id) continue;
+      dependencies.push({
+        id: `${idPrefix}-sem-cte-${dependencies.length + 1}`,
+        from: source.id,
+        to: physical.id,
+        type: 'unknown',
+        condition: 'CTE 依赖',
+        line: table.line,
+      });
+    }
+  }
+
   const lineage: LineageRow[] = [];
   const columns = (root.columns as AstNode[] | undefined) ?? [];
   for (const [index, column] of columns.entries()) {
@@ -368,7 +409,64 @@ export function buildSemanticRelations(
     });
   }
 
-  return { sources, joins, lineage };
+  // UNION 分支：把各分支血缘并到对应输出列，并在图里加一条分支依赖边
+  const confidenceRank: Record<LineageRow['confidence'], number> = {
+    exact: 0,
+    partial: 1,
+    unknown: 2,
+  };
+  let nextBranch = root._next;
+  let branchIndex = 0;
+  while (nextBranch) {
+    branchIndex += 1;
+    const branchAst: AstNode = { ...nextBranch, _next: undefined };
+    const branchRelations = buildSemanticRelations(
+      sql,
+      branchAst,
+      `${idPrefix}-union-${branchIndex}`,
+    );
+    const branchMain = branchRelations.sources[0];
+    if (main && branchMain) {
+      dependencies.push({
+        id: `${idPrefix}-sem-union-${branchIndex}`,
+        from: main.id,
+        to: branchMain.id,
+        type: 'unknown',
+        condition: `${(root.set_op ?? 'union').toUpperCase()} 分支 ${branchIndex + 1}`,
+        line: branchMain.line,
+      });
+    }
+    sources.push(...branchRelations.sources);
+    joins.push(...branchRelations.joins);
+    dependencies.push(...(branchRelations.dependencies ?? []));
+
+    branchRelations.lineage.forEach((row, index) => {
+      const base = lineage[index];
+      const label = `分支 ${branchIndex}`;
+      if (base) {
+        const via = [...(base.via ?? []), ...(row.via ?? [])];
+        lineage[index] = {
+          ...base,
+          source: `${base.source} + ${label}: ${row.source}`,
+          via: via.length > 0 ? [...new Set(via)] : undefined,
+          confidence:
+            confidenceRank[row.confidence] > confidenceRank[base.confidence]
+              ? row.confidence
+              : base.confidence,
+        };
+      } else {
+        lineage.push({
+          ...row,
+          id: `${idPrefix}-sem-lineage-union-${branchIndex}-${index + 1}`,
+          output: `${label} · ${row.output}`,
+        });
+      }
+    });
+
+    nextBranch = nextBranch._next;
+  }
+
+  return { sources, joins, dependencies, lineage };
 }
 
 interface ResolvedRef {

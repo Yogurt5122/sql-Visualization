@@ -136,6 +136,7 @@ export interface LineageRow {
 export interface Relations {
   sources: RelationSource[];
   joins: RelationJoin[];
+  dependencies?: RelationJoin[];
   lineage: LineageRow[];
 }
 
