@@ -79,4 +79,19 @@ describe('buildFlow', () => {
     expect(select.detail).toContain('uid');
     expect(select.detail).toContain('amount');
   });
+
+  it('UNION ALL 会生成独立的合并阶段', () => {
+    const steps = flowOf(
+      'SELECT id FROM a UNION ALL SELECT id FROM b',
+    );
+    const union = steps.find((step) => step.kind === 'union')!;
+
+    expect(steps.map((step) => step.label)).toEqual([
+      'FROM / JOIN',
+      'SELECT',
+      'UNION ALL',
+    ]);
+    expect(union.title).toBe('合并结果');
+    expect(union.detail).toBe('合并 2 个分支，保留重复行');
+  });
 });

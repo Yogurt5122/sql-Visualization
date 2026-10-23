@@ -8,7 +8,6 @@ import { useAnalysis } from './hooks/useAnalysis';
 import { usePwa } from './hooks/usePwa';
 import { useTheme, type ThemeMode } from './hooks/useTheme';
 import { Editor } from './ui/Editor';
-import { ClauseList } from './ui/ClauseList';
 import { FlowView } from './ui/FlowView';
 import { StructureView } from './ui/StructureView';
 import { RelationsView } from './ui/RelationsView';
@@ -158,9 +157,6 @@ export default function App() {
     [analysis],
   );
 
-  const activeClause = clauses.find(
-    (clause) => activeLine >= clause.span.startLine && activeLine <= clause.span.endLine,
-  );
   const activeStep = allSteps.find(
     (step) => activeLine >= step.startLine && activeLine <= step.endLine,
   );
@@ -646,19 +642,6 @@ export default function App() {
               onSelectLine={handleSelectLine}
             />
           )}
-
-          <div className="result-head">
-            <h2>逐句解释</h2>
-            <span className="muted">点击任意一条，定位到原文</span>
-          </div>
-
-          <ClauseList
-            statements={analysis.statements}
-            explanations={analysis.explanations}
-            issues={analysis.issues}
-            activeClauseId={activeClause?.id}
-            onSelect={handleSelectClause}
-          />
         </section>
       </main>
 
@@ -682,7 +665,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.5.1
+          左侧色条对应子句 · 点击行可定位 · v0.5.2
         </span>
       </footer>
     </div>

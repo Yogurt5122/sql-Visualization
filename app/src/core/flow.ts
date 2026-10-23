@@ -9,6 +9,7 @@ export type FlowStageKind =
   | 'window'
   | 'select'
   | 'distinct'
+  | 'union'
   | 'orderBy'
   | 'limit';
 
@@ -18,6 +19,7 @@ export type FlowEffect =
   | 'aggregate'
   | 'compute'
   | 'distinct'
+  | 'union'
   | 'sort'
   | 'truncate';
 
@@ -82,6 +84,7 @@ export function buildFlow(
   const where = find('where');
   const groupBy = find('groupBy');
   const having = find('having');
+  const unions = statement.clauses.filter((clause) => clause.kind === 'union');
   const select = find('select');
   const orderBy = find('orderBy');
   const limit = find('limit');
@@ -170,6 +173,24 @@ export function buildFlow(
         makeStep(statement, 'distinct', 'DISTINCT', '去重', '对结果去重', 'distinct', [select]),
       );
     }
+  }
+
+  if (unions.length > 0) {
+    const all = unions.some((clause) => /\bUNION\s+ALL\b/i.test(clause.text));
+    const label = all ? 'UNION ALL' : 'UNION';
+    steps.push(
+      makeStep(
+        statement,
+        'union',
+        label,
+        '合并结果',
+        all
+          ? `合并 ${unions.length + 1} 个分支，保留重复行`
+          : `合并 ${unions.length + 1} 个分支并去重`,
+        'union',
+        unions,
+      ),
+    );
   }
 
   if (orderBy) {

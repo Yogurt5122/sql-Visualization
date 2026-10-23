@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.5.1**：执行流程块改为详情弹窗；预输出在编辑器下方表格；SELECT 解释到具体字段与来源表。
+> 当前 **0.5.2**：修正 UNION ALL 流程识别；移除独立逐句解释模块，解释收进执行流程详情弹窗。
 
 ---
 
@@ -63,28 +63,28 @@
 | 错误 UX | 失败横幅显示行 / 列 / 原因，可定位出错行、换 MySQL / PostgreSQL / SQL Server 或强制重试 |
 | MyBatis 容错 | 识别 8 个常用标签，等长替换保行号，支持「全保留 / 全去掉」两个变体；`#{}` 转占位符 |
 | Web Worker | 解析在 Worker 中执行，260 ms 防抖、可取消；Worker 失败自动回主线程兜底 |
-| 语句与子句切分 | 顶层 `;` 切语句；`SELECT / FROM / JOIN / WHERE / GROUP BY / HAVING / ORDER BY / LIMIT` 等切子句；字符串、注释、括号内的关键字不误切 |
+| 语句与子句切分 | 顶层 `;` 切语句；`SELECT / FROM / JOIN / WHERE / GROUP BY / HAVING / ORDER BY / LIMIT / UNION ALL` 等切子句；字符串、注释、括号内的关键字不误切；UNION ALL 保持一条语句 |
 | 子句色条 | 编辑器左侧按语义上色，结构在文本里就能看见 |
 | SQL 美化 | 本地 `sql-formatter`：关键字大写、2 空格缩进、保留注释；支持四方言；MyBatis XML 跳过；快捷键 `Shift+Alt+F` |
 | 暗色模式 | 跟随系统 / 亮 / 暗三档；颜色 token + CodeMirror oneDark；SVG、表格、风险卡、MyBatis 提示全适配；只存主题偏好 |
 | 性能 | parser 不进主包，首屏走 Worker；formatter 按需加载；10k 行中位数约 1.8 s |
 | PWA / 离线 | manifest + Service Worker 预缓存；可安装、断网刷新、更新提示；只缓存静态产物，不缓存 SQL |
 | 单文件离线 | `pnpm build:single` 生成一个 HTML；双击 `file://` 打开；Worker 不可用时自动走主线程 |
-| 执行流程 | 按真实求值顺序展示；FROM 阶段列出具体表，SELECT 阶段列出具体字段与别名；点流程块打开详情弹窗 |
+| 执行流程 | 按真实求值顺序展示；FROM 阶段列出具体表，SELECT 阶段列出具体字段与别名；UNION / UNION ALL 生成独立「合并结果」阶段；点流程块打开详情弹窗 |
 | 预输出 | 编辑器下方表格，只列会输出的字段和来源，不展示样例数据；可收起，不遮挡结果区 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
 | 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 血缘递归到物理表并显示经过路径，表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
 | 多语句 | 结果区顶部「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 流程 / 解释仍展示全文 |
 | DML | INSERT / UPDATE / DELETE 只做结构解释，不生成关系 / 血缘；导出仍后置 |
 | 结构指标 | 表数、JOIN 数、输出列数、嵌套深度、复杂度；嵌套深度改用 QueryBlock 计算 |
-| 逐句人话解释 | 每个子句一段大白话 + 术语版 + 涉及的表；SELECT 写到字段 / 别名和来源表，`COUNT(*)` 说「行数」 |
+| 解释内容 | 每个子句一段大白话 + 术语版 + 涉及的表；SELECT 写到字段 / 别名和来源表，`COUNT(*)` 说「行数」；解释显示在执行流程详情弹窗，不再单独渲染列表 |
 | 一句话总结 | AST 驱动：解析 CTE 底层表、取数来源、过滤条件、分组、输出字段、排序与限条 |
 | 风险提示 | 已接入 17 条：结构 / 性能 / 语义 / DM8 四类；规则注册表 + 置信度 + 去重 + QueryBlock 上下文 |
 | 双向定位 | 点行 → 高亮对应解释；点解释 → 滚动到原文行 |
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
 | 真实语料 | 44 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 95.5 ms；`pnpm bench` 可复现 |
-| 测试 | 156 个测试：112 个单元测试 + 44 条真实语料 |
+| 测试 | 158 个测试：114 个单元测试 + 44 条真实语料 |
 
 ### 解析失败时
 
@@ -108,13 +108,17 @@
 
 ![预输出与字段解释](assets/preview-output.png)
 
-编辑器下方「预输出」表格只列会输出的字段和来源表，不展示样例数据；可收起，多语句时跟随当前语句。执行流程的 SELECT 阶段、逐句解释和一句话总结也都会写到具体字段，不再只说「计算 / 取数」。
+编辑器下方「预输出」表格只列会输出的字段和来源表，不展示样例数据；可收起，多语句时跟随当前语句。执行流程的 SELECT 阶段、流程详情和一句话总结也都会写到具体字段，不再只说「计算 / 取数」。
 
 ### 执行流程详情
 
 ![执行流程详情](assets/preview-flow-detail.png)
 
-点执行流程里的 SELECT / FROM 块，会打开详情弹窗：SELECT 展示输出字段表和逐句解释，FROM / JOIN 展示读取的表 / CTE / 子查询；底部可「定位原文」。
+点执行流程里的 SELECT / FROM 块，会打开详情弹窗：SELECT 展示输出字段表和解释，FROM / JOIN 展示读取的表 / CTE / 子查询；底部可「定位原文」。
+
+UNION / UNION ALL 会单独生成「合并结果」阶段，弹窗里说明保留重复行还是去重。
+
+![UNION ALL 合并阶段](assets/preview-union-flow.png)
 
 ### PWA / 离线
 
@@ -168,7 +172,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 156 个测试（112 单元 + 44 语料） |
+| `pnpm test` | 158 个测试（114 单元 + 44 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
 | `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
@@ -345,13 +349,13 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 ### 7.8 界面
 
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
-- 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 逐句解释。
+- 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 202.9 KB gzip，`format` 按需 74 KB，Worker 解析包约 517.2 KB，CSS 6.5 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 202.3 KB gzip，`format` 按需 74 KB，Worker 解析包约 517.2 KB，CSS 6.5 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
-**页面**：单页。桌面左右分栏（编辑 42% / 结果 58%）；≤1080px 上下堆叠。结果区自上而下：总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系 → 逐句解释。
+**页面**：单页。桌面左右分栏（编辑 42% / 结果 58%）；≤1080px 上下堆叠。结果区自上而下：总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系。
 
 **配色**：
 
@@ -369,7 +373,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **间距**：4px 基准；卡片圆角 10px、按钮 7–9px；页面内边距 14–20px。
 
-**组件**：Topbar、EditorPane、SummaryCard、MybatisBanner、Metrics、IssueCard、FlowTrack、StructureTree、RelationsView、ClauseList、OutputPreview、StatusBar。
+**组件**：Topbar、EditorPane、SummaryCard、MybatisBanner、Metrics、IssueCard、FlowTrack、FlowDetail、StructureTree、RelationsView、OutputPreview、StatusBar。
 
 **执行流程与解释**：FROM / JOIN 阶段写具体表名和连接数；WHERE / GROUP BY / ORDER BY 写具体字段；SELECT 阶段写「输出 N 列：字段名」，不再只说「取数 / 计算」。点流程块打开详情弹窗，SELECT 给字段表，FROM / JOIN 给数据源表，并带逐句解释和相关风险。
 
@@ -381,9 +385,9 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 
 **结构树**：位于执行流程下方、数据关系上方；默认展开，可折叠；每层缩进 16px；节点 = 类型徽章 + 名称 + 行号；FROM / WHERE / HAVING / SELECT 子查询和 UNION 分支内部子句由 AST 展开；点击节点跳转原文；顶部搜索框 + 「只看含表」开关；当前光标所在节点高亮。
 
-**数据关系**：位于结构树下方、逐句解释上方；三个页签「表关系 / 字段血缘 / 查询块」。表关系用轻量 SVG：节点 = 表 / CTE / 子查询，边 = 连接类型与条件，另有 CTE / UNION 依赖虚线；字段血缘用表格：输出列 / 来源 / 变换 / 经过 / 行号，来源会递归穿过 CTE，UNION 分支按输出列合并并标注「分支 N」；查询块用 SVG 树 + 列表展示主查询 / CTE / 子查询 / UNION 分支，显示行号、物理表数和连接数。
+**数据关系**：位于结构树下方；三个页签「表关系 / 字段血缘 / 查询块」。表关系用轻量 SVG：节点 = 表 / CTE / 子查询，边 = 连接类型与条件，另有 CTE / UNION 依赖虚线；字段血缘用表格：输出列 / 来源 / 变换 / 经过 / 行号，来源会递归穿过 CTE，UNION 分支按输出列合并并标注「分支 N」；查询块用 SVG 树 + 列表展示主查询 / CTE / 子查询 / UNION 分支，显示行号、物理表数和连接数。
 
-**多语句**：结果区顶部出现「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 执行流程 / 逐句解释仍展示全文。
+**多语句**：结果区顶部出现「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 执行流程仍展示全文。
 
 **语义状态与 MyBatis**：编辑器底部显示「语义模式 / 结构模式」，Worker 返回时追加 `· Worker`；分析中显示阶段文案和「取消」。检测到 MyBatis 标签时，在总结卡下方显示蓝色提示条与「全保留 / 全去掉」切换。
 
@@ -398,7 +402,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 血缘合并 / CTE 图追底 / 查询块图完成；DML 仅结构解释；导出后置 |
 | M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 0.4.0–0.4.4 完成；1.0 发布待 M4-6 |
-| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情弹窗 |
+| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情；0.5.2 UNION ALL + 移除逐句解释列表 |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 M4 只剩发布验收；导出仍放在最后，不阻塞 1.0。后续增强见 V2 想法池。
@@ -428,6 +432,7 @@ sql-xray/
 ├─ assets/preview-dark-queryblocks.png # 暗色查询块图
 ├─ assets/preview-output.png # 预输出与字段解释
 ├─ assets/preview-flow-detail.png # 执行流程详情
+├─ assets/preview-union-flow.png # UNION ALL 合并阶段
 ├─ assets/preview-single.png # 单文件离线版
 ├─ app/
 │  ├─ src/
@@ -437,7 +442,7 @@ sql-xray/
 │  │  ├─ preprocess/         # MyBatis 预处理
 │  │  ├─ hooks/              # useAnalysis / useTheme / usePwa
 │  │  ├─ workers/            # 分析 Worker + 消息协议
-│  │  └─ ui/                 # 编辑器 / 解释列表 / 主页面
+│  │  └─ ui/                 # 编辑器 / 流程详情 / 主页面
 │  ├─ public/                # manifest + PWA 图标
 │  ├─ tests/                 # 单元测试
 │  │  └─ corpus/             # 44 条脱敏 SQL 语料

@@ -839,6 +839,10 @@ button {
   --flow-color: #0891b2;
 }
 
+.flow-effect-union {
+  --flow-color: #0891b2;
+}
+
 .flow-effect-sort {
   --flow-color: #475569;
 }
@@ -1830,6 +1834,10 @@ button {
 }
 
 [data-theme='dark'] .flow-effect-distinct {
+  --flow-color: #22d3ee;
+}
+
+[data-theme='dark'] .flow-effect-union {
   --flow-color: #22d3ee;
 }
 

@@ -78,4 +78,20 @@ describe('splitStatements', () => {
     expect(statements[0]?.clauses).toHaveLength(1);
     expect(statements[0]?.clauses[0]?.kind).toBe('other');
   });
+
+  it('UNION ALL 保持一条语句，同时切出 UNION 子句', () => {
+    const statements = split(
+      'SELECT id FROM a UNION ALL SELECT id FROM b;',
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.kind).toBe('select');
+    expect(statements[0]?.clauses.map((clause) => clause.kind)).toEqual([
+      'select',
+      'from',
+      'union',
+      'select',
+      'from',
+    ]);
+    expect(statements[0]?.clauses[2]?.text).toContain('UNION ALL');
+  });
 });
