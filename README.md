@@ -1,10 +1,10 @@
-# SQL 透视镜 · sql-xray
+# SQL 透视镜 · sql-Visualization
 
 把一坨几百行的「屎山 SQL」，变成看得懂的结构 + 说人话的解释。
 
 **纯浏览器运行 · 不上传 · 不入库 · 不留痕 · MIT 开源**
 
-[在线演示](https://yogurt5122.github.io/sql-xray/) · [问题反馈](https://github.com/Yogurt5122/sql-xray/issues) · [源码](https://github.com/Yogurt5122/sql-xray)
+[在线演示](https://yogurt5122.github.io/sql-Visualization/) · [问题反馈](https://github.com/Yogurt5122/sql-Visualization/issues) · [源码](https://github.com/Yogurt5122/sql-Visualization)
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
@@ -179,7 +179,7 @@ pnpm dev              # http://localhost:5173
 | `pnpm check:privacy` | 扫描构建产物：无网络 API、无外部资源（含单文件） |
 | `pnpm preview` | 预览生产构建 |
 
-在线演示：<https://yogurt5122.github.io/sql-xray/>
+在线演示：<https://yogurt5122.github.io/sql-Visualization/>
 
 ### 性能基准
 
@@ -422,7 +422,7 @@ M4 只剩发布验收；导出仍放在最后，不阻塞 1.0。后续增强见 
 ## 10. 目录结构
 
 ```text
-sql-xray/
+sql-Visualization/
 ├─ README.md                 # 本文档
 ├─ LICENSE                   # MIT
 ├─ assets/preview.png        # 界面截图
@@ -477,11 +477,11 @@ pnpm build
 
 ## 12. 安全
 
-- 发现安全问题请**不要**开公开 Issue，使用 GitHub 的 [Private vulnerability reporting](https://github.com/Yogurt5122/sql-xray/security/advisories/new)。
+- 发现安全问题请**不要**开公开 Issue，使用 GitHub 的 [Private vulnerability reporting](https://github.com/Yogurt5122/sql-Visualization/security/advisories/new)。
 - 关注范围：SQL 被外发、XSS、依赖链投毒、构建产物与源码不一致、解析器崩溃。
 - 已知边界见 [隐私](#6-隐私)：浏览器扩展、恶意软件、托管平台访问日志不属于本项目能防护的范围。
 - Release 会附构建产物 SHA-256，支持自行构建比对（M4）。
 
 ## 13. License
 
-[MIT](LICENSE) © 2026 sql-xray contributors
+[MIT](LICENSE) © 2026 sql-Visualization contributors
