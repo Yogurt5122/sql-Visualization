@@ -2751,3 +2751,92 @@ button {
     linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, var(--panel)), var(--panel));
   border-left: 3px solid var(--accent);
 }
+
+/* ---------- 0.6.1 关系图联动 ---------- */
+.select-map-card.is-active {
+  background: color-mix(in srgb, var(--field-color) 8%, var(--panel));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--field-color) 28%, transparent);
+}
+
+.rel-node-accent {
+  fill: var(--node-color, #2563eb);
+}
+
+.rel-node-field {
+  fill: #334155;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+}
+
+.rel-node-field-dot {
+  fill: var(--node-color, #2563eb);
+}
+
+.rel-node-field.is-highlighted {
+  fill: var(--node-color, #2563eb);
+  font-weight: 700;
+}
+
+.rel-node-field-empty {
+  fill: #94a3b8;
+  font-style: italic;
+}
+
+.rel-node-field-more {
+  fill: #94a3b8;
+  font-size: 8.5px;
+}
+
+.rel-node.is-highlighted > rect:first-of-type {
+  stroke: var(--node-color, #2563eb);
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--node-color, #2563eb) 22%, transparent));
+}
+
+.rel-node.is-dimmed {
+  opacity: 0.3;
+}
+
+.rel-edge-condition {
+  fill: #94a3b8;
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.rel-edge.is-highlighted .rel-edge-line {
+  stroke: var(--node-color, #2563eb);
+  stroke-width: 2.6;
+  filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--node-color, #2563eb) 22%, transparent));
+}
+
+.rel-edge.is-dimmed {
+  opacity: 0.18;
+}
+
+.rel-edge:hover .rel-edge-line {
+  stroke-width: 2.8;
+}
+
+[data-theme='dark'] .rel-node-field {
+  fill: #cbd5e1;
+}
+
+[data-theme='dark'] .rel-node-field-empty,
+[data-theme='dark'] .rel-node-field-more {
+  fill: #64748b;
+}
+
+[data-theme='dark'] .rel-edge-condition {
+  fill: #94a3b8;
+}
+
+.rel-edge-label {
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+[data-theme='dark'] .rel-edge-label {
+  stroke: var(--panel);
+}

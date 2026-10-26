@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import type {
   JoinType,
   LineageTransform,
@@ -6,12 +7,16 @@ import type {
   RelationSource,
   SemanticQuery,
 } from '../core/types';
+import { collectSourceFields, sourceColor } from './visual';
 
 export interface RelationsViewProps {
   relations: Relations[];
   statementIndex: number;
   semantic: SemanticQuery | null;
   onSelectLine: (line: number) => void;
+  highlightTable?: string;
+  highlightField?: string;
+  onHighlightTable?: (table: string | null) => void;
 }
 
 const JOIN_LABEL: Record<JoinType, string> = {
@@ -47,9 +52,15 @@ function sourceKindLabel(source: RelationSource): string {
 function RelationGraph({
   relations,
   onSelectLine,
+  highlightTable,
+  highlightField,
+  onHighlightTable,
 }: {
   relations: Relations;
   onSelectLine: (line: number) => void;
+  highlightTable?: string;
+  highlightField?: string;
+  onHighlightTable?: (table: string | null) => void;
 }) {
   const { sources, joins, dependencies = [] } = relations;
   if (sources.length === 0) {
@@ -59,20 +70,39 @@ function RelationGraph({
     ...joins.map((join) => ({ edge: join, dependency: false })),
     ...dependencies.map((dependency) => ({ edge: dependency, dependency: true })),
   ];
+  const fieldsBySource = collectSourceFields(relations);
+  const aliasMap = new Map<string, string>();
+  for (const source of sources) {
+    aliasMap.set(source.name.toLowerCase(), source.name);
+    if (source.alias) aliasMap.set(source.alias.toLowerCase(), source.name);
+  }
+  const addField = (table: string, column: string) => {
+    const fields = new Set(fieldsBySource.get(table) ?? []);
+    fields.add(column);
+    fieldsBySource.set(table, [...fields].sort());
+  };
+  for (const join of joins) {
+    if (!join.condition) continue;
+    for (const match of join.condition.matchAll(/\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b/g)) {
+      const table = aliasMap.get(match[1]!.toLowerCase());
+      if (table) addField(table, match[2]!);
+    }
+  }
+  const sourceName = (id: string) => sources.find((source) => source.id === id)?.name ?? id;
 
   const main = sources[0]!;
   const others = sources.slice(1);
-  const nodeWidth = 156;
-  const nodeHeight = 46;
-  const width = 620;
-  const height = Math.max(130, 40 + others.length * 76);
+  const nodeWidth = 178;
+  const nodeHeight = 92;
+  const width = 680;
+  const height = Math.max(150, 30 + others.length * 110);
   const positions = new Map<string, { x: number; y: number }>();
 
   positions.set(main.id, { x: 14, y: height / 2 - nodeHeight / 2 });
   others.forEach((source, index) => {
     positions.set(source.id, {
       x: width - nodeWidth - 14,
-      y: 18 + index * 76,
+      y: 16 + index * 110,
     });
   });
 
@@ -99,11 +129,21 @@ function RelationGraph({
               ? 'UNION'
               : 'CTE'
             : JOIN_LABEL[join.type];
+          const related =
+            !highlightTable ||
+            sourceName(join.from) === highlightTable ||
+            sourceName(join.to) === highlightTable;
+          const dimmed = Boolean(highlightTable && !related);
+          const condition = join.condition?.trim()
+            ? shorten(join.condition.replace(/\s+/g, ' '), 30)
+            : '';
 
           return (
             <g
               key={join.id}
-              className={`rel-edge rel-edge-${join.type}${dependency ? ' rel-edge-dependency' : ''}`}
+              className={`rel-edge rel-edge-${join.type}${
+                dependency ? ' rel-edge-dependency' : ''
+              }${highlightTable && related ? ' is-highlighted' : ''}${dimmed ? ' is-dimmed' : ''}`}
               onClick={() => onSelectLine(join.line)}
               role="button"
               tabIndex={0}
@@ -113,8 +153,18 @@ function RelationGraph({
             >
               <path className="rel-edge-hit" d={path} />
               <path className="rel-edge-line" d={path} />
-              <text className="rel-edge-label" x={midX} y={(y1 + y2) / 2 - 5} textAnchor="middle">
-                {label}
+              <text
+                className="rel-edge-label"
+                x={midX}
+                y={(y1 + y2) / 2 - (condition ? 11 : 4)}
+                textAnchor="middle"
+              >
+                <tspan>{label}</tspan>
+                {condition ? (
+                  <tspan x={midX} dy={11} className="rel-edge-condition">
+                    {condition}
+                  </tspan>
+                ) : null}
               </text>
             </g>
           );
@@ -122,12 +172,29 @@ function RelationGraph({
 
         {sources.map((source) => {
           const position = positions.get(source.id)!;
+          const fields =
+            fieldsBySource.get(source.name) ??
+            (source.alias ? fieldsBySource.get(source.alias) : undefined) ??
+            [];
+          const isHighlighted =
+            Boolean(highlightTable) &&
+            (source.name === highlightTable || source.alias === highlightTable);
+          const dimmed = Boolean(highlightTable && !isHighlighted);
+          const visibleFields = fields.slice(0, 3);
+          const rest = fields.length - visibleFields.length;
+
           return (
             <g
               key={source.id}
-              className={`rel-node rel-node-${source.kind}`}
+              className={`rel-node rel-node-${source.kind}${
+                isHighlighted ? ' is-highlighted' : ''
+              }${dimmed ? ' is-dimmed' : ''}`}
+              style={{ '--node-color': sourceColor(source.name) } as CSSProperties}
               transform={`translate(${position.x}, ${position.y})`}
-              onClick={() => onSelectLine(source.line)}
+              onClick={() => {
+                onHighlightTable?.(source.name);
+                onSelectLine(source.line);
+              }}
               role="button"
               tabIndex={0}
               onKeyDown={(event) => {
@@ -135,13 +202,41 @@ function RelationGraph({
               }}
             >
               <rect width={nodeWidth} height={nodeHeight} rx={8} />
-              <text className="rel-node-name" x={10} y={19}>
-                {shorten(source.name, 19)}
+              <rect className="rel-node-accent" width={4} height={nodeHeight} rx={2} />
+              <text className="rel-node-name" x={12} y={19}>
+                {shorten(source.name, 21)}
               </text>
-              <text className="rel-node-meta" x={10} y={34}>
+              <text className="rel-node-meta" x={12} y={34}>
                 {sourceKindLabel(source)}
                 {source.alias ? ` · ${source.alias}` : ''} · L{source.line}
               </text>
+              {visibleFields.length > 0 ? (
+                visibleFields.map((field, index) => {
+                  const fieldHit =
+                    Boolean(highlightField) &&
+                    (highlightField?.includes(`${source.name}.${field}`) ||
+                      highlightField?.includes(`${source.alias ?? ''}.${field}`));
+                  return (
+                    <text
+                      key={field}
+                      className={`rel-node-field${fieldHit ? ' is-highlighted' : ''}`}
+                      x={12}
+                      y={52 + index * 13}
+                    >
+                      <tspan className="rel-node-field-dot">•</tspan> {shorten(field, 20)}
+                    </text>
+                  );
+                })
+              ) : (
+                <text className="rel-node-field rel-node-field-empty" x={12} y={54}>
+                  本次未直接取字段
+                </text>
+              )}
+              {rest > 0 ? (
+                <text className="rel-node-field-more" x={12} y={86}>
+                  +{rest} 个字段
+                </text>
+              ) : null}
             </g>
           );
         })}
@@ -396,6 +491,9 @@ export function RelationsView({
   statementIndex,
   semantic,
   onSelectLine,
+  highlightTable,
+  highlightField,
+  onHighlightTable,
 }: RelationsViewProps) {
   const [tab, setTab] = useState<'graph' | 'lineage' | 'blocks'>('graph');
 
@@ -448,7 +546,13 @@ export function RelationsView({
       </div>
 
       {tab === 'graph' ? (
-        <RelationGraph relations={current} onSelectLine={onSelectLine} />
+        <RelationGraph
+          relations={current}
+          onSelectLine={onSelectLine}
+          highlightTable={highlightTable}
+          highlightField={highlightField}
+          onHighlightTable={onHighlightTable}
+        />
       ) : tab === 'lineage' ? (
         <LineageTable relations={current} onSelectLine={onSelectLine} />
       ) : semantic ? (

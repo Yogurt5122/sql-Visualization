@@ -120,6 +120,8 @@ export default function App() {
     step: FlowStep;
     statementIndex: number;
   } | null>(null);
+  const [highlightTable, setHighlightTable] = useState<string>();
+  const [highlightField, setHighlightField] = useState<string>();
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
@@ -265,6 +267,8 @@ export default function App() {
 
   useEffect(() => {
     setFlowDetail(null);
+    setHighlightTable(undefined);
+    setHighlightField(undefined);
   }, [sql]);
 
   useEffect(() => {
@@ -516,7 +520,13 @@ export default function App() {
 
           <SelectMap
             relations={analysis.relations[statementIndex]}
+            highlightTable={highlightTable}
+            highlightField={highlightField}
             onSelectLine={handleSelectLine}
+            onHighlight={(table, source) => {
+              setHighlightTable(table);
+              setHighlightField(source);
+            }}
           />
 
           {analysis.parseError && (
@@ -646,6 +656,12 @@ export default function App() {
               statementIndex={statementIndex}
               semantic={analysis.semantic[statementIndex] ?? null}
               onSelectLine={handleSelectLine}
+              highlightTable={highlightTable}
+              highlightField={highlightField}
+              onHighlightTable={(table) => {
+                setHighlightTable(table ?? undefined);
+                setHighlightField(undefined);
+              }}
             />
           )}
         </section>
@@ -671,7 +687,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.6.0
+          左侧色条对应子句 · 点击行可定位 · v0.6.1
         </span>
       </footer>
     </div>

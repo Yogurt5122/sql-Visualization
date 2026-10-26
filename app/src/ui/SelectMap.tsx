@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { Relations } from '../core/types';
-
-const COLORS = ['#2563eb', '#0891b2', '#7c3aed', '#db2777', '#ea580c', '#16a34a'];
+import { sourceColor, sourceTable, sourceTables } from './visual';
 
 const TRANSFORM_LABEL: Record<string, string> = {
   direct: '直接引用',
@@ -14,27 +13,21 @@ const TRANSFORM_LABEL: Record<string, string> = {
   unknown: '未知',
 };
 
-function colorFor(value: string): string {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return COLORS[hash % COLORS.length]!;
-}
-
-function sourceTable(source: string): string {
-  if (/按行计数|常量|表达式/.test(source)) return '计算值';
-  const match = /([A-Za-z_][\w$#]*\.[A-Za-z_][\w$#]*)/.exec(source);
-  if (!match) return '其他来源';
-  return match[1]!.split('.')[0]!;
-}
-
 export interface SelectMapProps {
   relations?: Relations;
+  highlightTable?: string;
+  highlightField?: string;
   onSelectLine: (line: number) => void;
+  onHighlight?: (table: string, source: string) => void;
 }
 
-export function SelectMap({ relations, onSelectLine }: SelectMapProps) {
+export function SelectMap({
+  relations,
+  highlightTable,
+  highlightField,
+  onSelectLine,
+  onHighlight,
+}: SelectMapProps) {
   const rows = relations?.lineage ?? [];
   if (rows.length === 0) return null;
 
@@ -49,14 +42,14 @@ export function SelectMap({ relations, onSelectLine }: SelectMapProps) {
           <h2>输出字段与来源</h2>
         </div>
         <span className="select-map-summary">
-          {hasUnknown ? '全部字段' : `${rows.length} 个字段`} · {tables.length} 个来源
+          {hasUnknown ? '全部字段' : `${rows.length} 个字段`} · {tables.length} 个来源 · 点击字段联动关系图
         </span>
       </div>
 
       <div className="select-map-legend" aria-label="来源表图例">
         {tables.map((table) => (
           <span key={table} className="select-map-legend-item">
-            <i style={{ background: colorFor(table) }} aria-hidden="true" />
+            <i style={{ background: sourceColor(table) }} aria-hidden="true" />
             {table}
           </span>
         ))}
@@ -65,18 +58,25 @@ export function SelectMap({ relations, onSelectLine }: SelectMapProps) {
       <div className="select-map-grid">
         {rows.map((row) => {
           const table = sourceTable(row.source);
-          const color = colorFor(table);
+          const color = sourceColor(table);
           const style = { '--field-color': color } as CSSProperties;
           const unknown = row.output === '*' || row.output.endsWith('.*');
+          const isActive =
+            highlightField === row.source || (!highlightField && highlightTable === table);
 
           return (
             <button
               key={row.id}
               type="button"
-              className={`select-map-card${unknown ? ' is-unknown' : ''}`}
+              className={`select-map-card${unknown ? ' is-unknown' : ''}${
+                isActive ? ' is-active' : ''
+              }`}
               style={style}
-              onClick={() => onSelectLine(row.line)}
-              title={`定位到第 ${row.line} 行`}
+              onClick={() => {
+                onHighlight?.(table, row.source);
+                onSelectLine(row.line);
+              }}
+              title={`${sourceTables(row.source).join('、')} · 定位到第 ${row.line} 行`}
             >
               <span className="select-map-output">{row.output}</span>
               <span className="select-map-flow" aria-hidden="true">
