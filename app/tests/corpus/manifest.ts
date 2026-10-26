@@ -86,6 +86,14 @@ export const CORPUS: CorpusCase[] = [
     note: 'MySQL 紧邻多语句',
   },
   {
+    file: 'mysql_complex_mixed.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 2,
+    note: 'MySQL 多层 CTE + 窗口 + UNION 混合',
+  },
+  {
     file: 'mysql_case_when.sql',
     dialect: 'mysql',
     mode: 'semantic',

@@ -122,11 +122,17 @@ function buildSegment(
     const conditions = joins
       .map((clause) => joinConditionText(clause.text))
       .filter((condition): condition is string => Boolean(condition));
+    const conditionDetail =
+      conditions.length > 1
+        ? `${conditions.slice(0, 2).map((condition) => compactSql(condition, 36)).join(' · ')}${
+            conditions.length > 2 ? '…' : ''
+          }`
+        : conditions[0];
     const detail =
       tableNames.length > 0
         ? `${tableNames.slice(0, 4).join('、')}${tableNames.length > 4 ? '…' : ''}${
             joins.length > 0 ? ` · ${joins.length} 个连接` : ''
-          }${conditions.length > 0 ? ` · ${conditions[0]}` : joins.length > 0 ? ' · 缺连接条件' : ''}`
+          }${conditionDetail ? ` · ${conditionDetail}` : joins.length > 0 ? ' · 缺连接条件' : ''}`
         : joins.length > 0
           ? `${sourceCount} 张表 · ${joins.length} 个连接`
           : `${sourceCount} 张表`;

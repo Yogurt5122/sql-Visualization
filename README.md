@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.5.5**：UNION 分支独立流程；补语句识别边界；预输出支持 DDL 类型、复制、记忆收起。
+> 当前 **0.5.6**：`SELECT *` 在 DDL 下展开；复杂 SQL 验收；多 JOIN 流程卡；截图统一 `t_demo_*`。
 
 ---
 
@@ -32,6 +32,7 @@
 
 | 版本 | 更新了啥 |
 | --- | --- |
+| 0.5.6 | `SELECT *` 在 DDL 下展开具体字段和类型；复杂 CTE + 窗口 + UNION 验收；多 JOIN 流程卡写多个连接条件；截图统一为 `t_demo_*` |
 | 0.5.5 | UNION 主查询和每个分支独立流程；补括号 UNION / 连续 UNION / WITH + UNION / 注释 / 紧邻多语句；预输出支持 DDL 类型、复制字段、记忆收起、长字段名和大量字段滚动；新增表名硬性检查、pre-commit 和 CI |
 | 0.5.4 | CTE 派生列继续追到定义；`SELECT *` 穿过已知 CTE / 派生表展开；WHERE / JOIN / HAVING 写到具体条件与关联键 |
 | 0.5.3 | 子查询派生列按别名解析；`COUNT(*) AS CNT` 不再误报成物理表字段，标成「按行计数 / 聚合」 |
@@ -39,7 +40,7 @@
 | 0.5.1 | 执行流程块改为详情弹窗：输出字段、来源表、连接关系、风险和定位原文 |
 | 0.5.0 | 编辑器下方预输出表格；执行流程和一句话总结写到具体字段与来源 |
 
----
+完整记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ---
 
@@ -83,8 +84,8 @@
 | 性能 | parser 不进主包，首屏走 Worker；formatter 按需加载；10k 行中位数约 1.8 s |
 | PWA / 离线 | manifest + Service Worker 预缓存；可安装、断网刷新、更新提示；只缓存静态产物，不缓存 SQL |
 | 单文件离线 | `pnpm build:single` 生成一个 HTML；双击 `file://` 打开；Worker 不可用时自动走主线程 |
-| 执行流程 | 按真实求值顺序展示；FROM 阶段列出具体表，WHERE / JOIN / HAVING 写具体条件与键，SELECT 阶段列出具体字段与别名；UNION / UNION ALL 的主查询和每个分支独立成段，再生成「合并结果」阶段；点流程块打开详情弹窗 |
-| 预输出 | 编辑器下方表格，列字段、类型和来源；有 `CREATE TABLE` 时显示 DDL 类型；支持复制字段、记住收起状态、长字段名省略和大量字段滚动 |
+| 执行流程 | 按真实求值顺序展示；FROM 阶段列出具体表，WHERE / JOIN / HAVING 写具体条件与键，多 JOIN 同时写出多个连接条件；SELECT 阶段列出具体字段与别名；UNION / UNION ALL 的主查询和每个分支独立成段，再生成「合并结果」阶段；点流程块打开详情弹窗 |
+| 预输出 | 编辑器下方表格，列字段、类型和来源；有 `CREATE TABLE` 时显示 DDL 类型，`SELECT *` 也展开成具体字段；支持复制字段、记住收起状态、长字段名省略和大量字段滚动 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
 | 数据关系 | 表关系图 + 字段血缘 + 查询块；CTE 派生列继续追到底层定义，`SELECT *` 可穿已知 CTE / 派生表展开列；表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
 | 多语句 | 结果区顶部「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 流程 / 解释仍展示全文 |
@@ -95,9 +96,9 @@
 | 风险提示 | 已接入 17 条：结构 / 性能 / 语义 / DM8 四类；规则注册表 + 置信度 + 去重 + QueryBlock 上下文 |
 | 双向定位 | 点行 → 高亮对应解释；点解释 → 滚动到原文行 |
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
-| 真实语料 | 50 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
+| 真实语料 | 51 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 95.5 ms；`pnpm bench` 可复现 |
-| 测试 | 180 个测试：130 个单元测试 + 50 条真实语料 |
+| 测试 | 183 个测试：132 个单元测试 + 51 条真实语料 |
 
 ### 解析失败时
 
@@ -185,7 +186,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 180 个测试（130 单元 + 50 语料） |
+| `pnpm test` | 183 个测试（132 单元 + 51 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
 | `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
@@ -216,7 +217,7 @@ pnpm dev              # http://localhost:5173
 
 ### 真实语料
 
-`app/tests/corpus/` 下有 **50 条脱敏 SQL**，覆盖：
+`app/tests/corpus/` 下有 **51 条脱敏 SQL**，覆盖：
 
 - MySQL：GMV 聚合、窗口函数、两层 CTE、UNION、CASE、IN 子查询、多表 JOIN、JSON、注释里的分号、派生表、多语句、派生表 `ORDER BY`、`DISTINCT` + JOIN、`UNION` 去重、重复表达式、自连接重复表、3 层嵌套、SELECT 相关子查询、低基数列 JOIN + 聚合、隐式类型转换
 - PostgreSQL：DISTINCT ON、FILTER、CTE + INTERVAL、`::` 类型转换、LATERAL
@@ -366,7 +367,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 203.3 KB gzip，`format` 按需 74 KB，Worker 解析包约 518.4 KB，CSS 6.6 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 203.3 KB gzip，`format` 按需 74 KB，Worker 解析包约 518.6 KB，CSS 6.6 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -417,7 +418,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 血缘合并 / CTE 图追底 / 查询块图完成；DML 仅结构解释；导出后置 |
 | M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 0.4.0–0.4.4 完成；1.0 发布待 M4-6 |
-| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情；0.5.2 UNION ALL + 移除逐句解释列表；0.5.3 派生列血缘；0.5.4 CTE 派生列 + SELECT * 展开 + JOIN/WHERE/HAVING 具体化；0.5.5 UNION 分支流程 + 预输出增强 |
+| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情；0.5.2 UNION ALL + 移除逐句解释列表；0.5.3 派生列血缘；0.5.4 CTE 派生列 + SELECT * 展开 + JOIN/WHERE/HAVING 具体化；0.5.5 UNION 分支流程 + 预输出增强；0.5.6 SELECT * DDL 展开 + 多 JOIN + 验收 |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 M4 只剩发布验收；导出仍放在最后，不阻塞 1.0。后续增强见 V2 想法池。
@@ -460,7 +461,7 @@ sql-Visualization/
 │  │  └─ ui/                 # 编辑器 / 流程详情 / 主页面
 │  ├─ public/                # manifest + PWA 图标
 │  ├─ tests/                 # 单元测试
-│  │  └─ corpus/             # 50 条脱敏 SQL 语料
+│  │  └─ corpus/             # 51 条脱敏 SQL 语料
 │  ├─ benchmark/             # 性能基准
 │  ├─ scripts/               # 隐私检查 + Service Worker / 单文件生成
 │  ├─ dist/                  # 生产构建产物（不提交）

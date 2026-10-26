@@ -41,4 +41,21 @@ describe('DDL schema', () => {
     expect(rows[0]?.type).toBe('BIGINT');
     expect(rows[1]?.type).toBe('DECIMAL(18,2)');
   });
+
+  it('DDL 下 SELECT * 展开为具体列和类型', () => {
+    const analysis = analyzeSql(
+      `CREATE TABLE t_demo_order (
+        order_id BIGINT,
+        amount DECIMAL(18,2)
+      );
+      SELECT * FROM t_demo_order;`,
+      'mysql',
+    );
+    const rows = analysis.relations[1]?.lineage ?? [];
+
+    expect(rows.map((row) => row.output)).toEqual(['order_id', 'amount']);
+    expect(rows[0]?.source).toBe('t_demo_order.order_id');
+    expect(rows[0]?.type).toBe('BIGINT');
+    expect(rows[1]?.type).toBe('DECIMAL(18,2)');
+  });
 });

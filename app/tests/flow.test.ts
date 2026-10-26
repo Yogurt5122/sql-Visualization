@@ -122,4 +122,20 @@ describe('buildFlow', () => {
     expect(where.detail).toContain("o.dt = '2024-01-01'");
     expect(having.detail).toContain('COUNT(*) > 3');
   });
+
+  it('多个 JOIN 的流程卡同时写出多个连接条件', () => {
+    const analysis = analyzeSql(
+      `SELECT o.id
+       FROM t_demo_order o
+       JOIN t_demo_user_dim u ON o.user_id = u.id
+       JOIN t_demo_product p ON o.product_id = p.id`,
+      'mysql',
+    );
+    const source = buildFlow(analysis.statements[0]!, analysis.relations[0]).find(
+      (step) => step.kind === 'source',
+    )!;
+
+    expect(source.detail).toContain('o.user_id = u.id');
+    expect(source.detail).toContain('o.product_id = p.id');
+  });
 });

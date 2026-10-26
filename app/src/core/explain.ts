@@ -63,6 +63,49 @@ function cleanValue(value: string): string {
   return trimmed;
 }
 
+function expandDdlStars(
+  relations: Relations[],
+  schema: Map<string, Map<string, string>>,
+): void {
+  for (const relation of relations) {
+    const expanded: typeof relation.lineage = [];
+    for (const row of relation.lineage) {
+      if (row.output !== '*' && !row.output.endsWith('.*')) {
+        expanded.push(row);
+        continue;
+      }
+
+      const source = row.source.trim();
+      if (source.includes(' / ') || !source.endsWith('.*')) {
+        expanded.push(row);
+        continue;
+      }
+
+      const table = source.slice(0, -2);
+      const columns =
+        schema.get(table.toLowerCase()) ??
+        schema.get(table.toLowerCase().split('.').pop() ?? '');
+      if (!columns || columns.size === 0) {
+        expanded.push(row);
+        continue;
+      }
+
+      for (const [column, type] of columns) {
+        expanded.push({
+          ...row,
+          id: `${row.id}-${column}`,
+          output: column,
+          source: `${table}.${column}`,
+          transform: 'direct',
+          type,
+          confidence: 'exact',
+        });
+      }
+    }
+    relation.lineage = expanded;
+  }
+}
+
 /**
  * 按顶层 AND / OR 拆分谓词。BETWEEN x AND y 里的 AND 不拆。
  */
@@ -569,6 +612,7 @@ export function analyzeSql(
         if (type) row.type = type;
       }
     }
+    expandDdlStars(relations, ddlSchema);
   }
 
   const explanations = buildExplanations(statements, relations);
