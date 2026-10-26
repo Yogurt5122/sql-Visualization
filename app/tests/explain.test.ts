@@ -27,6 +27,15 @@ describe('analyzeSql', () => {
     expect(explanation.plain).toContain('u.status 等于 1');
   });
 
+  it('HAVING 解释 COUNT(*) 在算每组行数', () => {
+    const analysis = analyzeSql(GOLDEN, 'mysql');
+    const having = analysis.statements[0]!.clauses.find((clause) => clause.kind === 'having')!;
+    const explanation = analysis.explanations.find((item) => item.clauseId === having.id)!;
+
+    expect(explanation.plain).toContain('COUNT(*) 先算每个分组的行数');
+    expect(explanation.plain).toContain('再只保留该值 大于 3 的分组');
+  });
+
   it('SELECT 列表解释列数与别名', () => {
     const analysis = analyzeSql(GOLDEN, 'mysql');
     const select = analysis.statements[0]!.clauses.find((clause) => clause.kind === 'select')!;

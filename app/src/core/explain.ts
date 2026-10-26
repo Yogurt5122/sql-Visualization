@@ -345,6 +345,31 @@ function limitValue(text: string): string {
   return match ? match[1]! : '若干';
 }
 
+function describeHavingCondition(raw: string): string {
+  const text = raw.trim();
+  const aggregate =
+    /^(COUNT|SUM|AVG|MIN|MAX)\s*\(\s*([^)]*?)\s*\)\s*(=|<>|!=|>=|<=|>|<)\s*(.+)$/i.exec(
+      text,
+    );
+
+  if (!aggregate) return describeCondition(text);
+
+  const fn = aggregate[1]!.toUpperCase();
+  const arg = aggregate[2]!.trim();
+  const operator = aggregate[3]!;
+  const value = cleanValue(aggregate[4]!);
+  const opText = OP_TEXT[operator] ?? '满足';
+
+  const target =
+    fn === 'COUNT'
+      ? arg === '*'
+        ? '每个分组的行数'
+        : `每个分组里 ${arg} 的非空个数`
+      : `每个分组 ${arg} 的${AGG_TEXT[fn] ?? '聚合值'}`;
+
+  return `${fn}(${arg}) 先算${target}，再只保留该值 ${opText} ${value} 的分组`;
+}
+
 function explainClause(
   clause: Clause,
   relations?: Relations,
@@ -425,7 +450,7 @@ function explainClause(
     case 'having': {
       const conditions = splitConditions(stripLeadingKeyword(clause.text, 'HAVING'));
       return {
-        plain: `分组后再筛：${conditions.map(describeCondition).join('、')}。`,
+        plain: `分组后筛选：${conditions.map(describeHavingCondition).join('；')}。`,
         refs: [],
       };
     }

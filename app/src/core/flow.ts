@@ -177,13 +177,21 @@ function buildSegment(
 
   if (having) {
     const condition = compactSql(stripLeadingKeyword(having.text, 'HAVING'));
+    const aggregate = /^(COUNT|SUM|AVG|MIN|MAX)\s*\(\s*([^)]*?)\s*\)/i.exec(condition);
+    const aggregateHint = aggregate
+      ? ` · ${aggregate[1]!.toUpperCase()} 先算${
+          aggregate[1]!.toUpperCase() === 'COUNT' && aggregate[2]!.trim() === '*'
+            ? '每组行数'
+            : '每组聚合值'
+        }`
+      : '';
     steps.push(
       makeStep(
         statement,
         'having',
         'HAVING',
         '过滤',
-        condition ? `过滤聚合 ${condition}` : '分组后再筛一遍',
+        condition ? `过滤聚合 ${condition}${aggregateHint}` : '分组后再筛一遍',
         'filter',
         [having],
       ),

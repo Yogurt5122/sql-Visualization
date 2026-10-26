@@ -13,6 +13,7 @@ import { StructureView } from './ui/StructureView';
 import { RelationsView } from './ui/RelationsView';
 import { OutputPreview } from './ui/OutputPreview';
 import { FlowDetail } from './ui/FlowDetail';
+import { SelectMap } from './ui/SelectMap';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -513,6 +514,11 @@ export default function App() {
             <span role="listitem">复杂度 {activeMetrics.complexity}</span>
           </div>
 
+          <SelectMap
+            relations={analysis.relations[statementIndex]}
+            onSelectLine={handleSelectLine}
+          />
+
           {analysis.parseError && (
             <div className="parse-banner" role="alert">
               <div className="parse-banner-body">
@@ -665,7 +671,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.5.6
+          左侧色条对应子句 · 点击行可定位 · v0.6.0
         </span>
       </footer>
     </div>
