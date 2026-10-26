@@ -374,6 +374,7 @@ export function buildSemanticRelations(
     const resolved: string[] = [];
     const via: string[] = [];
     let confidence: LineageRow['confidence'] = 'exact';
+    let derivedTransform: LineageTransform | undefined;
 
     for (const ref of refs) {
       if (!ref.column || ref.column === '*') {
@@ -387,6 +388,9 @@ export function buildSemanticRelations(
       if (physical) {
         resolved.push(physical.source);
         via.push(...physical.via);
+        if (physical.transform && physical.transform !== 'direct') {
+          derivedTransform = physical.transform;
+        }
         if (!physical.exact) confidence = 'partial';
         continue;
       }
@@ -419,7 +423,7 @@ export function buildSemanticRelations(
       output,
       source: [...new Set(resolved)].join(' + '),
       via: via.length > 0 ? [...new Set(via)] : undefined,
-      transform: transformOf(expr),
+      transform: derivedTransform ?? transformOf(expr),
       line: nodeLoc(expr).line ?? 1,
       confidence,
     });
@@ -489,6 +493,7 @@ interface ResolvedRef {
   source: string;
   via: string[];
   exact: boolean;
+  transform?: LineageTransform;
 }
 
 function findFromItem(queryAst: AstNode, tableOrAlias?: string): AstNode | undefined {
@@ -547,6 +552,7 @@ function resolveRef(
         source: nested.source,
         via: [tableName, ...nested.via],
         exact: nested.exact,
+        transform: nested.transform,
       };
     }
 
@@ -571,6 +577,7 @@ function resolveRef(
     source: nested.source,
     via: [alias ?? '子查询', ...nested.via],
     exact: nested.exact,
+    transform: nested.transform,
   };
 }
 
@@ -580,6 +587,52 @@ function resolveColumnInQuery(
   cteMap: Map<string, AstNode>,
   visited: Set<string>,
 ): ResolvedRef | null {
+  const target = column.toLowerCase();
+
+  // 子查询输出列可能是派生列，例如 COUNT(*) AS CNT。
+  // 必须先按 SELECT 别名找定义，不能直接把它当成底层表的同名字段。
+  for (const item of queryAst.columns ?? []) {
+    const alias = aliasOf(item.as);
+    if (!alias || alias.toLowerCase() !== target || !item.expr) continue;
+
+    const expr = item.expr;
+    const transform = transformOf(expr);
+    const refs = collectRefs(expr);
+
+    if (
+      expr.type === 'aggr_func' &&
+      String(expr.name ?? '').toUpperCase() === 'COUNT' &&
+      refs.every((ref) => !ref.column || ref.column === '*')
+    ) {
+      return {
+        source: '按行计数',
+        via: [],
+        exact: true,
+        transform: 'aggregate',
+      };
+    }
+
+    if (refs.length === 0) {
+      const literal = ['string', 'single_quote_string', 'number', 'null', 'bool'].includes(
+        expr.type ?? '',
+      );
+      return {
+        source: literal ? '常量' : '表达式',
+        via: [],
+        exact: false,
+        transform,
+      };
+    }
+
+    const nested = resolveExpression(queryAst, expr, cteMap, visited);
+    if (!nested) return null;
+    return {
+      ...nested,
+      via: [alias, ...nested.via],
+      transform,
+    };
+  }
+
   const items = queryAst.from ?? [];
   if (items.length !== 1) return null;
   const table = typeof items[0]!.table === 'string' ? items[0]!.table : undefined;

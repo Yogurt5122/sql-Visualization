@@ -108,6 +108,14 @@ export const CORPUS: CorpusCase[] = [
     note: 'MySQL 派生表二次聚合',
   },
   {
+    file: 'mysql_derived_lineage.sql',
+    dialect: 'mysql',
+    mode: 'semantic',
+    minStatements: 1,
+    expectedTables: 1,
+    note: 'MySQL 派生列 COUNT(*) AS CNT',
+  },
+  {
     file: 'mysql_derived_order.sql',
     dialect: 'mysql',
     mode: 'semantic',

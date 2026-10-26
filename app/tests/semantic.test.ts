@@ -232,4 +232,22 @@ SELECT id, total FROM stats`,
     expect(row?.source).toContain('dwd_order');
     expect(analysis.semantic[0]?.outputNames).toEqual(['*']);
   });
+
+  it('子查询派生列不冒充物理表字段', () => {
+    const analysis = analyzeSql(
+      `SELECT T.TBL_NAME AS "TBL_NAME", T.CNT AS "ROW_CNT"
+FROM (
+  SELECT 'dwd_asset' AS TBL_NAME, COUNT(*) AS CNT
+  FROM dwd_asset
+) T`,
+      'mysql',
+    );
+    const rows = analysis.relations[0]!.lineage;
+
+    expect(rows[0]?.source).toBe('常量');
+    expect(rows[1]?.source).toBe('按行计数');
+    expect(rows[1]?.source).not.toContain('dwd_asset.CNT');
+    expect(rows[1]?.transform).toBe('aggregate');
+    expect(rows[1]?.via).toContain('T');
+  });
 });
