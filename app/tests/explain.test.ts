@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { analyzeSql } from '../src/core/explain';
 
 const GOLDEN = `SELECT o.user_id, COUNT(*) AS cnt
-FROM dwd_order o
-JOIN dim_user u ON o.user_id = u.id
+FROM t_demo_order o
+JOIN t_demo_user_dim u ON o.user_id = u.id
 WHERE o.dt = '2024-01-01' AND u.status = 1
 GROUP BY o.user_id
 HAVING COUNT(*) > 3
@@ -13,8 +13,8 @@ LIMIT 100`;
 describe('analyzeSql', () => {
   it('总结里包含关键表与限条', () => {
     const analysis = analyzeSql(GOLDEN, 'mysql');
-    expect(analysis.summary).toContain('dwd_order');
-    expect(analysis.summary).toContain('dim_user');
+    expect(analysis.summary).toContain('t_demo_order');
+    expect(analysis.summary).toContain('t_demo_user_dim');
     expect(analysis.summary).toContain('取前 100 行');
     expect(analysis.dialect).toBe('mysql');
   });
@@ -33,7 +33,7 @@ describe('analyzeSql', () => {
     const explanation = analysis.explanations.find((item) => item.clauseId === select.id)!;
     expect(explanation.plain).toContain('最终输出 2 列');
     expect(explanation.plain).toContain('行数（cnt）');
-    expect(explanation.plain).toContain('dwd_order.user_id');
+    expect(explanation.plain).toContain('t_demo_order.user_id');
   });
 
   it('报出 SELECT * 风险', () => {

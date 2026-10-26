@@ -1,3 +1,3 @@
 SELECT
-FROM dwd_order
+FROM t_demo_order
 WHERE dt = '2024-12-01';

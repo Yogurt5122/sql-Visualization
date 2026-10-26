@@ -1,3 +1,3 @@
 SELECT id
-FROM dwd_order
+FROM t_demo_order
 LIMIT 10;

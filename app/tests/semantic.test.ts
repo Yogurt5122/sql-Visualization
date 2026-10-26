@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { analyzeSql } from '../src/core/explain';
 
 const GOLDEN = `SELECT o.user_id, COUNT(*) AS cnt
-FROM dwd_order o
-JOIN dim_user u ON o.user_id = u.id
+FROM t_demo_order o
+JOIN t_demo_user_dim u ON o.user_id = u.id
 WHERE o.dt = '2024-01-01' AND u.status = 1
 GROUP BY o.user_id
 HAVING COUNT(*) > 3
@@ -16,11 +16,11 @@ describe('semantic AST', () => {
     expect(analysis.mode).toBe('semantic');
     expect(analysis.parseError).toBeUndefined();
     expect(analysis.relations[0]?.sources.map((source) => source.name)).toEqual([
-      'dwd_order',
-      'dim_user',
+      't_demo_order',
+      't_demo_user_dim',
     ]);
     expect(analysis.relations[0]?.joins).toHaveLength(1);
-    expect(analysis.relations[0]?.lineage[0]?.source).toBe('dwd_order.user_id');
+    expect(analysis.relations[0]?.lineage[0]?.source).toBe('t_demo_order.user_id');
     expect(analysis.relations[0]?.lineage[1]?.source).toBe('按行计数');
   });
 
@@ -50,7 +50,7 @@ GROUP BY base.id`,
   });
 
   it('DM8 仍走结构模式，但不产生解析错误横幅', () => {
-    const analysis = analyzeSql('SELECT * FROM dm_emp WHERE ROWNUM <= 10', 'dm8');
+    const analysis = analyzeSql('SELECT * FROM t_demo_emp WHERE ROWNUM <= 10', 'dm8');
     expect(analysis.mode).toBe('structural');
     expect(analysis.parseError).toBeUndefined();
   });
@@ -78,16 +78,16 @@ LIMIT 10`,
   it('CTE 血缘会追到物理表，并记录经过的 CTE', () => {
     const analysis = analyzeSql(
       `WITH base AS (
-  SELECT id, amount FROM dwd_order WHERE amount > 0
+  SELECT id, amount FROM t_demo_order WHERE amount > 0
 )
 SELECT b.id, b.amount FROM base b`,
       'mysql',
     );
     const lineage = analysis.relations[0]!.lineage;
 
-    expect(lineage[0]?.source).toBe('dwd_order.id');
+    expect(lineage[0]?.source).toBe('t_demo_order.id');
     expect(lineage[0]?.via).toEqual(['base']);
-    expect(lineage[1]?.source).toBe('dwd_order.amount');
+    expect(lineage[1]?.source).toBe('t_demo_order.amount');
     expect(lineage[1]?.via).toEqual(['base']);
     expect(lineage[0]?.confidence).toBe('exact');
   });
@@ -121,9 +121,9 @@ SELECT id FROM b`,
   it('QueryBlock 收集 WHERE / SELECT 子查询、深度和关联标记', () => {
     const analysis = analyzeSql(
       `SELECT o.id,
-  (SELECT MAX(u.id) FROM dim_user u WHERE u.id = o.user_id) AS max_id
-FROM dwd_order o
-WHERE o.user_id IN (SELECT id FROM dim_user)`,
+  (SELECT MAX(u.id) FROM t_demo_user_dim u WHERE u.id = o.user_id) AS max_id
+FROM t_demo_order o
+WHERE o.user_id IN (SELECT id FROM t_demo_user_dim)`,
       'mysql',
     );
     const model = analysis.semantic[0]!;
@@ -175,7 +175,7 @@ WHERE o.user_id IN (SELECT id FROM dim_user)`,
   it('CTE 链总结会递归到物理表并标出经过的 CTE', () => {
     const analysis = analyzeSql(
       `WITH paid AS (
-  SELECT id, amount FROM dwd_order
+  SELECT id, amount FROM t_demo_order
 ),
 stats AS (
   SELECT id, SUM(amount) AS total FROM paid GROUP BY id
@@ -184,7 +184,7 @@ SELECT id, total FROM stats`,
       'mysql',
     );
 
-    expect(analysis.summary).toContain('stats ← dwd_order');
+    expect(analysis.summary).toContain('stats ← t_demo_order');
     expect(analysis.summary).toContain('经 paid');
     expect(analysis.metrics.tables).toBe(1);
   });
@@ -203,7 +203,7 @@ SELECT id, total FROM stats`,
   it('CTE 关系图补出到底层物理表的依赖边', () => {
     const analysis = analyzeSql(
       `WITH paid AS (
-  SELECT id, amount FROM dwd_order
+  SELECT id, amount FROM t_demo_order
 ),
 stats AS (
   SELECT id, SUM(amount) AS total FROM paid GROUP BY id
@@ -218,27 +218,27 @@ SELECT id, total FROM stats`,
 
     expect(cte?.name).toBe('stats');
     expect(dependency?.condition).toBe('CTE 依赖');
-    expect(target?.name).toBe('dwd_order');
+    expect(target?.name).toBe('t_demo_order');
   });
 
   it('SELECT * 的预输出标为全部字段并带来源表', () => {
     const analysis = analyzeSql(
-      'SELECT * FROM dwd_order o JOIN dim_user u ON u.id = o.user_id',
+      'SELECT * FROM t_demo_order o JOIN t_demo_user_dim u ON u.id = o.user_id',
       'mysql',
     );
     const row = analysis.relations[0]?.lineage[0];
 
     expect(row?.output).toBe('*');
-    expect(row?.source).toContain('dwd_order');
+    expect(row?.source).toContain('t_demo_order');
     expect(analysis.semantic[0]?.outputNames).toEqual(['*']);
   });
 
   it('子查询派生列不冒充物理表字段', () => {
     const analysis = analyzeSql(
-      `SELECT T.TBL_NAME AS "TBL_NAME", T.CNT AS "ROW_CNT"
+      `SELECT T.demo_label AS "demo_label", T.demo_count AS "demo_count"
 FROM (
-  SELECT 'dwd_asset' AS TBL_NAME, COUNT(*) AS CNT
-  FROM dwd_asset
+  SELECT 't_demo_asset' AS demo_label, COUNT(*) AS demo_count
+  FROM t_demo_asset
 ) T`,
       'mysql',
     );
@@ -246,7 +246,7 @@ FROM (
 
     expect(rows[0]?.source).toBe('常量');
     expect(rows[1]?.source).toBe('按行计数');
-    expect(rows[1]?.source).not.toContain('dwd_asset.CNT');
+    expect(rows[1]?.source).not.toContain('t_demo_asset.demo_count');
     expect(rows[1]?.transform).toBe('aggregate');
     expect(rows[1]?.via).toContain('T');
   });
@@ -279,22 +279,22 @@ FROM (
 
   it('SELECT * 穿过已知派生表输出列', () => {
     const analysis = analyzeSql(
-      'SELECT * FROM (SELECT id, amount FROM dwd_order) s',
+      'SELECT * FROM (SELECT id, amount FROM t_demo_order) s',
       'mysql',
     );
     const rows = analysis.relations[0]!.lineage;
 
     expect(rows.map((row) => row.output)).toEqual(['id', 'amount']);
-    expect(rows[0]?.source).toBe('dwd_order.id');
+    expect(rows[0]?.source).toBe('t_demo_order.id');
     expect(rows[0]?.via).toContain('s');
   });
 
   it('SELECT * 对未知物理表仍保持全部字段', () => {
-    const analysis = analyzeSql('SELECT * FROM dwd_order', 'mysql');
+    const analysis = analyzeSql('SELECT * FROM t_demo_order', 'mysql');
     const row = analysis.relations[0]?.lineage[0];
 
     expect(row?.output).toBe('*');
-    expect(row?.source).toBe('dwd_order.*');
+    expect(row?.source).toBe('t_demo_order.*');
     expect(row?.confidence).toBe('unknown');
   });
 });

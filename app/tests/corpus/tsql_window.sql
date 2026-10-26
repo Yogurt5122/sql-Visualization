@@ -5,5 +5,5 @@ SELECT TOP (10)
     PARTITION BY user_id
     ORDER BY created_at DESC
   ) AS rn
-FROM dbo.dwd_order
+FROM dbo.t_demo_order
 WHERE status = 'PAID';

@@ -1,4 +1,4 @@
 SELECT o.id, u.name
-FROM dwd_order o
-JOIN dim_user u
+FROM t_demo_order o
+JOIN t_demo_user_dim u
 WHERE o.status = 1;

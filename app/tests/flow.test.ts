@@ -10,8 +10,8 @@ function flowOf(sql: string) {
 }
 
 const GOLDEN = `SELECT o.user_id, COUNT(*) AS cnt
-FROM dwd_order o
-JOIN dim_user u ON o.user_id = u.id
+FROM t_demo_order o
+JOIN t_demo_user_dim u ON o.user_id = u.id
 WHERE o.dt = '2024-01-01' AND u.status = 1
 GROUP BY o.user_id
 HAVING COUNT(*) > 3
@@ -66,14 +66,14 @@ describe('buildFlow', () => {
 
   it('带关系时说明具体表和输出字段，而不是只说取数/计算', () => {
     const analysis = analyzeSql(
-      'SELECT o.user_id AS uid, o.amount FROM dwd_order o WHERE o.status = 1',
+      'SELECT o.user_id AS uid, o.amount FROM t_demo_order o WHERE o.status = 1',
       'mysql',
     );
     const steps = buildFlow(analysis.statements[0]!, analysis.relations[0]);
     const source = steps.find((step) => step.kind === 'source')!;
     const select = steps.find((step) => step.kind === 'select')!;
 
-    expect(source.detail).toContain('dwd_order');
+    expect(source.detail).toContain('t_demo_order');
     expect(source.title).toBe('读取表');
     expect(select.title).toBe('输出字段');
     expect(select.detail).toContain('uid');

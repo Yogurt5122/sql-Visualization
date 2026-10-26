@@ -1,9 +1,9 @@
 SELECT
-  T.TBL_NAME AS "TBL_NAME",
-  T.CNT AS "ROW_CNT"
+  T.demo_label AS "demo_label",
+  T.demo_count AS "demo_count"
 FROM (
   SELECT
-    'dwd_asset' AS TBL_NAME,
-    COUNT(*) AS CNT
-  FROM dwd_asset
+    't_demo_asset' AS demo_label,
+    COUNT(*) AS demo_count
+  FROM t_demo_asset
 ) T;

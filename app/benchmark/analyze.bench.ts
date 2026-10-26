@@ -14,7 +14,7 @@ function buildSingleQuery(targetLines: number): { sql: string; columns: number; 
   const joinList = Array.from(
     { length: joins },
     (_, index) =>
-      `LEFT JOIN dim_entity_${index + 1} t${index + 1} ON t${index + 1}.id = t0.entity_${index + 1}_id`,
+      `LEFT JOIN t_demo_entity_dim_${index + 1} t${index + 1} ON t${index + 1}.id = t0.entity_${index + 1}_id`,
   ).join('\n');
   const whereList = Array.from(
     { length: conditions },
@@ -23,7 +23,7 @@ function buildSingleQuery(targetLines: number): { sql: string; columns: number; 
 
   const sql = `WITH base AS (
   SELECT *
-  FROM fact_entity t0
+  FROM t_demo_entity_fact t0
   WHERE dt >= '2024-01-01'
 )
 SELECT
@@ -44,7 +44,7 @@ function buildMultiStatement(targetLines: number): string {
   id,
   name,
   amount
-FROM fact_entity_${index % 20}
+FROM t_demo_entity_fact_${index % 20}
 WHERE dt = '2024-12-01'
   AND status = 'PAID';`).join('\n');
 }

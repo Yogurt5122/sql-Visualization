@@ -6,8 +6,8 @@ import { scan } from '../src/core/scanner';
 import { splitStatements } from '../src/core/splitter';
 
 const GOLDEN = `SELECT o.user_id, COUNT(*) AS cnt
-FROM dwd_order o
-JOIN dim_user u ON o.user_id = u.id
+FROM t_demo_order o
+JOIN t_demo_user_dim u ON o.user_id = u.id
 WHERE o.dt = '2024-01-01' AND u.status = 1
 GROUP BY o.user_id
 HAVING COUNT(*) > 3
@@ -85,7 +85,7 @@ SELECT * FROM base`);
 
   it('搜索会把命中的祖先一起保留', () => {
     const root = structureOf(GOLDEN);
-    const filtered = filterStructure([root], 'dim_user', false);
+    const filtered = filterStructure([root], 't_demo_user_dim', false);
     const labels = flatten(filtered).map((node) => node.label);
     expect(labels).toContain('JOIN');
     expect(labels).toContain('主查询');
@@ -159,8 +159,8 @@ WHERE s.id IN (SELECT id FROM u)`;
 
   it('SELECT 里的标量子查询会挂到 SELECT 并标记关联', () => {
     const sql = `SELECT o.id,
-  (SELECT MAX(u.id) FROM dim_user u WHERE u.id = o.user_id) AS max_id
-FROM dwd_order o`;
+  (SELECT MAX(u.id) FROM t_demo_user_dim u WHERE u.id = o.user_id) AS max_id
+FROM t_demo_order o`;
     const analysis = analyzeSql(sql, 'mysql');
     const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
     const select = root.children[0]!.children.find(

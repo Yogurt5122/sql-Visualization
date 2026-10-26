@@ -1,7 +1,7 @@
 SELECT t.id, t.amount
 FROM (
   SELECT id, amount
-  FROM dwd_order
+  FROM t_demo_order
   WHERE dt = '2024-12-01'
   ORDER BY amount DESC
 ) t

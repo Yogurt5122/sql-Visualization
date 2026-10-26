@@ -5,6 +5,6 @@ SELECT
     ELSE 'low'
   END AS amount_level,
   COUNT(*) AS cnt
-FROM dwd_order
+FROM t_demo_order
 WHERE dt = '2024-12-01'
 GROUP BY 1;

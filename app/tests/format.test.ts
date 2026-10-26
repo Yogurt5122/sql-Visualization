@@ -9,7 +9,7 @@ describe('formatSql', () => {
   });
   it('格式化 MySQL 并保留注释', () => {
     const input = `-- 订单明细
-select o.id,o.name from dwd_order o join dim_user u on u.id=o.user_id where o.dt='2024-12-01' and u.status=1 order by o.id limit 10`;
+select o.id,o.name from t_demo_order o join t_demo_user_dim u on u.id=o.user_id where o.dt='2024-12-01' and u.status=1 order by o.id limit 10`;
     const output = formatSql(input, 'mysql');
 
     expect(output).toContain('-- 订单明细');
@@ -30,7 +30,7 @@ select o.id,o.name from dwd_order o join dim_user u on u.id=o.user_id where o.dt
 
   it('保留 PostgreSQL 的 :: 类型转换', () => {
     const output = formatSql(
-      'select sum(amount)::numeric(18,2) as total from dwd_order',
+      'select sum(amount)::numeric(18,2) as total from t_demo_order',
       'postgres',
     );
     expect(output).toContain('::numeric');
@@ -38,7 +38,7 @@ select o.id,o.name from dwd_order o join dim_user u on u.id=o.user_id where o.dt
 
   it('保留 DM8 的 (+) 外连接', () => {
     const output = formatSql(
-      'select a.id from dm_a a, dm_b b where a.id = b.id(+)',
+      'select a.id from t_demo_dm_a a, t_demo_dm_b b where a.id = b.id(+)',
       'dm8',
     );
     expect(output).toContain('(+)');

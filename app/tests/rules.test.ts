@@ -61,8 +61,8 @@ describe('rule engine', () => {
   }> = [
     {
       id: 'RSK-01',
-      positive: 'SELECT * FROM dwd_order',
-      negative: 'SELECT order_id FROM dwd_order',
+      positive: 'SELECT * FROM t_demo_order',
+      negative: 'SELECT order_id FROM t_demo_order',
     },
     {
       id: 'RSK-02',
@@ -118,9 +118,9 @@ describe('rule engine', () => {
     {
       id: 'RSK-12',
       positive:
-        'SELECT o.id, (SELECT MAX(u.id) FROM dim_user u WHERE u.id = o.user_id) AS m FROM dwd_order o',
+        'SELECT o.id, (SELECT MAX(u.id) FROM t_demo_user_dim u WHERE u.id = o.user_id) AS m FROM t_demo_order o',
       negative:
-        'SELECT o.id, (SELECT MAX(u.id) FROM dim_user u) AS m FROM dwd_order o',
+        'SELECT o.id, (SELECT MAX(u.id) FROM t_demo_user_dim u) AS m FROM t_demo_order o',
     },
     {
       id: 'RSK-13',
@@ -171,13 +171,13 @@ describe('rule engine', () => {
   }
 
   it('COUNT(*) 不会被当成 SELECT *', () => {
-    const analysis = analyzeSql('SELECT COUNT(*) AS cnt FROM dwd_order', 'mysql');
+    const analysis = analyzeSql('SELECT COUNT(*) AS cnt FROM t_demo_order', 'mysql');
     expect(analysis.issues.some((issue) => issue.ruleId === 'RSK-01')).toBe(false);
   });
 
   it('RSK-02 不把 WHERE 里的连接条件误报成笛卡尔积', () => {
     const analysis = analyzeSql(
-      'SELECT o.id FROM dwd_order o JOIN dim_user u WHERE o.user_id = u.id',
+      'SELECT o.id FROM t_demo_order o JOIN t_demo_user_dim u WHERE o.user_id = u.id',
       'mysql',
     );
     expect(analysis.issues.some((issue) => issue.ruleId === 'RSK-02')).toBe(false);
@@ -185,7 +185,7 @@ describe('rule engine', () => {
 
   it('RSK-07 不把 COUNT(DISTINCT) 当成 SELECT DISTINCT', () => {
     const analysis = analyzeSql(
-      'SELECT COUNT(DISTINCT o.user_id) AS cnt FROM dwd_order o JOIN dim_user u ON u.id = o.user_id',
+      'SELECT COUNT(DISTINCT o.user_id) AS cnt FROM t_demo_order o JOIN t_demo_user_dim u ON u.id = o.user_id',
       'mysql',
     );
     expect(analysis.issues.some((issue) => issue.ruleId === 'RSK-07')).toBe(false);
@@ -196,7 +196,7 @@ describe('rule engine', () => {
       `SELECT channel_id,
         COUNT(*) FILTER (WHERE status = 'PAID') AS cnt,
         SUM(pay_amount) FILTER (WHERE status = 'PAID') AS gmv
-       FROM dwd_order
+       FROM t_demo_order
        GROUP BY channel_id`,
       'postgres',
     );
@@ -206,9 +206,9 @@ describe('rule engine', () => {
   it('RSK-03 不把 LATERAL 当成函数', () => {
     const analysis = analyzeSql(
       `SELECT u.id
-       FROM dim_user u
+       FROM t_demo_user_dim u
        LEFT JOIN LATERAL (
-         SELECT id FROM dwd_order o WHERE o.user_id = u.id LIMIT 3
+         SELECT id FROM t_demo_order o WHERE o.user_id = u.id LIMIT 3
        ) x ON true`,
       'postgres',
     );

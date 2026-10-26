@@ -6,7 +6,7 @@ FROM (
     order_id,
     pay_amount,
     ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
-  FROM dwd_order
+  FROM t_demo_order
   WHERE status = 'PAID'
 ) t
 WHERE rn <= 3;

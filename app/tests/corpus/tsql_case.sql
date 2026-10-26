@@ -5,7 +5,7 @@ SELECT
     ELSE 'low'
   END AS amount_level,
   COUNT(*) AS cnt
-FROM dbo.dwd_order
+FROM dbo.t_demo_order
 GROUP BY
   CASE
     WHEN pay_amount >= 1000 THEN 'high'

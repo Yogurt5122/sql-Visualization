@@ -113,7 +113,7 @@ export const CORPUS: CorpusCase[] = [
     mode: 'semantic',
     minStatements: 1,
     expectedTables: 1,
-    note: 'MySQL 派生列 COUNT(*) AS CNT',
+    note: 'MySQL 派生列 COUNT(*) AS demo_count',
   },
   {
     file: 'mysql_derived_order.sql',

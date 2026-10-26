@@ -15,8 +15,8 @@ import { OutputPreview } from './ui/OutputPreview';
 import { FlowDetail } from './ui/FlowDetail';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
-FROM dwd_order o
-JOIN dim_user u ON o.user_id = u.id
+FROM t_demo_order o
+JOIN t_demo_user_dim u ON o.user_id = u.id
 WHERE o.dt = '2024-01-01' AND u.status = 1
 GROUP BY o.user_id
 HAVING COUNT(*) > 3
@@ -24,7 +24,7 @@ ORDER BY cnt DESC
 LIMIT 100`;
 
 const SAMPLE_DM8 = `SELECT d.dept_name, e.emp_name, NVL(e.bonus, 0) AS bonus
-FROM dm_emp e, dm_dept d
+FROM t_demo_emp e, t_demo_dept d
 WHERE e.dept_id(+) = d.dept_id
   AND e.status = 1
   AND ROWNUM <= 100
@@ -32,7 +32,7 @@ ORDER BY e.hire_date DESC`;
 
 const SAMPLE_MYBATIS = `<select id="queryUser" resultType="User">
   SELECT u.id, u.name, u.status
-  FROM sys_user u
+  FROM t_demo_sys_user u
   <where>
     <if test="status != null"> AND u.status = #{status} </if>
     <if test="name != null"> AND u.name LIKE CONCAT('%', #{name}, '%') </if>
@@ -42,7 +42,7 @@ const SAMPLE_MYBATIS = `<select id="queryUser" resultType="User">
 
 const SAMPLE_CTE = `WITH base AS (
   SELECT id, amount
-  FROM dwd_order
+  FROM t_demo_order
   WHERE amount > 0
 )
 SELECT b.id, b.amount
@@ -52,42 +52,42 @@ ORDER BY b.amount DESC
 LIMIT 50`;
 
 const SAMPLE_MULTI = `SELECT id, name
-FROM dwd_user
+FROM t_demo_user
 WHERE status = 1;
 
 SELECT order_id, SUM(amount) AS total
-FROM dwd_order
+FROM t_demo_order
 WHERE dt = '2024-12-01'
 GROUP BY order_id
 ORDER BY total DESC
 LIMIT 20;`;
 
 const SAMPLE_BROKEN = `SELECT
-FROM dwd_order
+FROM t_demo_order
 WHERE dt = '2024-12-01';`;
 
-const SAMPLE_RISK = `SELECT * FROM dwd_order o
-JOIN dim_user u
+const SAMPLE_RISK = `SELECT * FROM t_demo_order o
+JOIN t_demo_user_dim u
 WHERE o.user_id = u.id
 LIMIT 10;`;
 
 const SAMPLE_UNION = `SELECT o.order_id, o.pay_amount
-FROM dwd_order o
+FROM t_demo_order o
 WHERE o.dt = '2024-12-01'
 UNION ALL
 SELECT r.order_id, r.refund_amount
-FROM dwd_refund r
+FROM t_demo_refund r
 WHERE r.dt = '2024-12-01';`;
 
 const SAMPLE_QUERYBLOCK = `SELECT
   o.order_id,
   (SELECT MAX(r.refund_amount)
-   FROM dwd_refund r
+   FROM t_demo_refund r
    WHERE r.order_id = o.order_id) AS max_refund
-FROM dwd_order o
+FROM t_demo_order o
 WHERE o.user_id IN (
   SELECT user_id
-  FROM dim_user
+  FROM t_demo_user_dim
   WHERE vip_level >= 3
 );`;
 

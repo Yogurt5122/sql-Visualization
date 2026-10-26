@@ -1,6 +1,6 @@
 SELECT id
-FROM dwd_order
+FROM t_demo_order
 WHERE user_id NOT IN (
   SELECT user_id
-  FROM dim_user
+  FROM t_demo_user_dim
 );

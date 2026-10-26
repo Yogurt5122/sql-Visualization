@@ -1,6 +1,6 @@
 WITH recent AS (
   SELECT id, user_id, pay_amount
-  FROM dwd_order
+  FROM t_demo_order
   WHERE created_at >= NOW() - INTERVAL '7 days'
 )
 SELECT user_id, SUM(pay_amount) AS gmv

@@ -4,7 +4,7 @@ FROM (
   FROM (
     SELECT a.id
     FROM (
-      SELECT id FROM dwd_order
+      SELECT id FROM t_demo_order
     ) a
   ) b
 ) c;
