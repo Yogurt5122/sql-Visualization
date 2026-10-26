@@ -19,6 +19,15 @@ const SEVERITY_LABEL: Record<Issue['severity'], string> = {
   low: '低',
 };
 
+const JOIN_LABEL: Record<string, string> = {
+  inner: '内连接',
+  left: '左连接',
+  right: '右连接',
+  full: '全连接',
+  cross: '交叉连接',
+  unknown: '隐式 / 未知',
+};
+
 export function FlowDetail({
   step,
   statementIndex,
@@ -48,6 +57,9 @@ export function FlowDetail({
     step.kind === 'source' || step.kind === 'window'
       ? relations?.sources ?? []
       : [];
+  const joins = step.kind === 'source' ? relations?.joins ?? [] : [];
+  const sourceName = (id: string) =>
+    relations?.sources.find((source) => source.id === id)?.name ?? id;
 
   return (
     <div
@@ -139,6 +151,38 @@ export function FlowDetail({
                             : '表'}
                       </td>
                       <td>L{source.line}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {joins.length > 0 ? (
+          <div className="flow-detail-block">
+            <h4>连接关系</h4>
+            <div className="flow-detail-table-wrap">
+              <table className="flow-detail-table">
+                <thead>
+                  <tr>
+                    <th>左</th>
+                    <th>右</th>
+                    <th>类型</th>
+                    <th>条件</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {joins.map((join) => (
+                    <tr key={join.id}>
+                      <td>
+                        <code>{sourceName(join.from)}</code>
+                      </td>
+                      <td>
+                        <code>{sourceName(join.to)}</code>
+                      </td>
+                      <td>{JOIN_LABEL[join.type] ?? join.type}</td>
+                      <td>{join.condition ?? '缺连接条件'}</td>
                     </tr>
                   ))}
                 </tbody>

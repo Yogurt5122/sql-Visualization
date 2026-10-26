@@ -250,4 +250,51 @@ FROM (
     expect(rows[1]?.transform).toBe('aggregate');
     expect(rows[1]?.via).toContain('T');
   });
+
+  it('CTE 派生列也追到按行计数，而不是 CTE.CNT', () => {
+    const analysis = analyzeSql(
+      'WITH x AS (SELECT COUNT(*) AS CNT FROM t) SELECT x.CNT AS cnt FROM x',
+      'mysql',
+    );
+    const row = analysis.relations[0]?.lineage[0];
+
+    expect(row?.source).toBe('按行计数');
+    expect(row?.source).not.toContain('x.CNT');
+    expect(row?.transform).toBe('aggregate');
+    expect(row?.via).toContain('x');
+  });
+
+  it('SELECT * 穿过已知 CTE 输出列', () => {
+    const analysis = analyzeSql(
+      'WITH x AS (SELECT id, name FROM t) SELECT * FROM x',
+      'mysql',
+    );
+    const rows = analysis.relations[0]!.lineage;
+
+    expect(rows.map((row) => row.output)).toEqual(['id', 'name']);
+    expect(rows[0]?.source).toBe('t.id');
+    expect(rows[0]?.via).toContain('x');
+    expect(rows[1]?.source).toBe('t.name');
+  });
+
+  it('SELECT * 穿过已知派生表输出列', () => {
+    const analysis = analyzeSql(
+      'SELECT * FROM (SELECT id, amount FROM dwd_order) s',
+      'mysql',
+    );
+    const rows = analysis.relations[0]!.lineage;
+
+    expect(rows.map((row) => row.output)).toEqual(['id', 'amount']);
+    expect(rows[0]?.source).toBe('dwd_order.id');
+    expect(rows[0]?.via).toContain('s');
+  });
+
+  it('SELECT * 对未知物理表仍保持全部字段', () => {
+    const analysis = analyzeSql('SELECT * FROM dwd_order', 'mysql');
+    const row = analysis.relations[0]?.lineage[0];
+
+    expect(row?.output).toBe('*');
+    expect(row?.source).toBe('dwd_order.*');
+    expect(row?.confidence).toBe('unknown');
+  });
 });

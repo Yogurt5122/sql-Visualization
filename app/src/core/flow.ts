@@ -66,6 +66,19 @@ function countItems(text: string): number {
   return splitTopLevel(text, ',').length;
 }
 
+function compactSql(text: string, max = 80): string {
+  const value = text.replace(/\s+/g, ' ').trim();
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+function joinConditionText(text: string): string | undefined {
+  const on = /\bON\b([\s\S]+)$/i.exec(text)?.[1];
+  if (on) return compactSql(on);
+  const using = /\bUSING\s*\(([^)]+)\)/i.exec(text)?.[1];
+  if (using) return `USING (${compactSql(using)})`;
+  return undefined;
+}
+
 /**
  * 以数据库的**逻辑求值顺序**生成执行流程，而不是 SQL 的书写顺序。
  *
@@ -92,11 +105,14 @@ export function buildFlow(
   if (from) {
     const sourceCount = countItems(stripLeadingKeyword(from.text, 'FROM')) + joins.length;
     const tableNames = [...new Set((relations?.sources ?? []).map((source) => source.name))];
+    const conditions = joins
+      .map((clause) => joinConditionText(clause.text))
+      .filter((condition): condition is string => Boolean(condition));
     const detail =
       tableNames.length > 0
         ? `${tableNames.slice(0, 4).join('、')}${tableNames.length > 4 ? '…' : ''}${
             joins.length > 0 ? ` · ${joins.length} 个连接` : ''
-          }`
+          }${conditions.length > 0 ? ` · ${conditions[0]}` : joins.length > 0 ? ' · 缺连接条件' : ''}`
         : joins.length > 0
           ? `${sourceCount} 张表 · ${joins.length} 个连接`
           : `${sourceCount} 张表`;
@@ -110,8 +126,17 @@ export function buildFlow(
   }
 
   if (where) {
+    const condition = compactSql(stripLeadingKeyword(where.text, 'WHERE'));
     steps.push(
-      makeStep(statement, 'where', 'WHERE', '过滤', '只保留满足条件的行', 'filter', [where]),
+      makeStep(
+        statement,
+        'where',
+        'WHERE',
+        '过滤',
+        condition ? `过滤 ${condition}` : '只保留满足条件的行',
+        'filter',
+        [where],
+      ),
     );
   }
 
@@ -131,8 +156,17 @@ export function buildFlow(
   }
 
   if (having) {
+    const condition = compactSql(stripLeadingKeyword(having.text, 'HAVING'));
     steps.push(
-      makeStep(statement, 'having', 'HAVING', '过滤', '分组后再筛一遍', 'filter', [having]),
+      makeStep(
+        statement,
+        'having',
+        'HAVING',
+        '过滤',
+        condition ? `过滤聚合 ${condition}` : '分组后再筛一遍',
+        'filter',
+        [having],
+      ),
     );
   }
 

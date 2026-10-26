@@ -218,6 +218,78 @@ function sourceKind(
   return cteNames.has(table.toLowerCase()) ? 'cte' : 'table';
 }
 
+interface ExpandedColumn {
+  output: string;
+  source: string;
+  via?: string[];
+  transform: LineageTransform;
+  line: number;
+  confidence: LineageRow['confidence'];
+}
+
+function columnOutputName(
+  sql: string,
+  column: AstNode,
+): string | null {
+  const alias = aliasOf(column.as);
+  if (alias) return alias;
+  if (column.expr?.type === 'column_ref') {
+    return String(column.expr.column ?? '') || null;
+  }
+  const text = textOf(sql, column.expr);
+  return text ? compact(text, 28) : null;
+}
+
+function expandStarColumns(
+  sql: string,
+  item: AstNode,
+  cteMap: Map<string, AstNode>,
+  visited: Set<string>,
+): ExpandedColumn[] | null {
+  let queryAst: AstNode | undefined;
+  let sourceLabel: string | undefined;
+
+  if (typeof item.table === 'string') {
+    const cte = cteMap.get(item.table.toLowerCase());
+    if (!cte) return null;
+    queryAst = cte;
+    sourceLabel = item.table;
+  } else {
+    queryAst =
+      item.expr?.ast ??
+      (item.table && typeof item.table === 'object' ? item.table : undefined);
+    sourceLabel = aliasOf(item.as) ?? '子查询';
+  }
+
+  if (!queryAst?.columns?.length) return null;
+
+  const result: ExpandedColumn[] = [];
+  for (const column of queryAst.columns) {
+    const output = columnOutputName(sql, column);
+    if (!output || output === '*') return null;
+
+    const resolved = resolveColumnInQuery(
+      queryAst,
+      output,
+      cteMap,
+      new Set([...visited, (sourceLabel ?? '').toLowerCase()]),
+    );
+    const via = [sourceLabel, ...(resolved?.via ?? [])].filter(
+      (value): value is string => Boolean(value),
+    );
+
+    result.push({
+      output,
+      source: resolved?.source ?? `${sourceLabel}.${output}`,
+      via: via.length > 0 ? [...new Set(via)] : undefined,
+      transform: resolved?.transform ?? transformOf(column.expr),
+      line: nodeLoc(column.expr).line ?? 1,
+      confidence: resolved ? (resolved.exact ? 'exact' : 'partial') : 'partial',
+    });
+  }
+  return result;
+}
+
 export function buildSemanticRelations(
   sql: string,
   ast: unknown,
@@ -347,9 +419,30 @@ export function buildSemanticRelations(
     const output = alias ?? (isStar ? '*' : compact(text, 28));
 
     if (isStar) {
+      const fromItems = (root.from as AstNode[] | undefined) ?? [];
+      const expanded =
+        fromItems.length === 1
+          ? expandStarColumns(sql, fromItems[0]!, cteMap, new Set())
+          : null;
+
+      if (expanded && expanded.length > 0) {
+        expanded.forEach((field, fieldIndex) => {
+          lineage.push({
+            id: `${idPrefix}-sem-lineage-${index + 1}-${fieldIndex + 1}`,
+            output: field.output,
+            source: field.source,
+            via: field.via,
+            transform: field.transform,
+            line: field.line,
+            confidence: field.confidence,
+          });
+        });
+        continue;
+      }
+
       const starSources = [
         ...new Set(
-          ((root.from as AstNode[] | undefined) ?? [])
+          fromItems
             .map((item) =>
               typeof item.table === 'string' ? item.table : '子查询',
             )
@@ -507,19 +600,6 @@ function findFromItem(queryAst: AstNode, tableOrAlias?: string): AstNode | undef
   });
 }
 
-function findCteColumn(cteAst: AstNode, column: string): AstNode | undefined {
-  const target = column.toLowerCase();
-  for (const item of cteAst.columns ?? []) {
-    const alias = aliasOf(item.as);
-    if (alias && alias.toLowerCase() === target) return item.expr;
-    if (item.expr?.type === 'column_ref') {
-      const name = String(item.expr.column ?? '');
-      if (name.toLowerCase() === target) return item.expr;
-    }
-  }
-  return undefined;
-}
-
 function resolveRef(
   queryAst: AstNode,
   ref: { table?: string; column: string },
@@ -539,11 +619,9 @@ function resolveRef(
 
     if (cteAst) {
       if (visited.has(key)) return null;
-      const expr = findCteColumn(cteAst, ref.column);
-      if (!expr) return null;
-      const nested = resolveExpression(
+      const nested = resolveColumnInQuery(
         cteAst,
-        expr,
+        ref.column,
         cteMap,
         new Set([...visited, key]),
       );

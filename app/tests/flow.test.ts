@@ -94,4 +94,16 @@ describe('buildFlow', () => {
     expect(union.title).toBe('合并结果');
     expect(union.detail).toBe('合并 2 个分支，保留重复行');
   });
+
+  it('JOIN / WHERE / HAVING 流程卡写到具体键和条件', () => {
+    const analysis = analyzeSql(GOLDEN, 'mysql');
+    const steps = buildFlow(analysis.statements[0]!, analysis.relations[0]);
+    const source = steps.find((step) => step.kind === 'source')!;
+    const where = steps.find((step) => step.kind === 'where')!;
+    const having = steps.find((step) => step.kind === 'having')!;
+
+    expect(source.detail).toContain('o.user_id = u.id');
+    expect(where.detail).toContain("o.dt = '2024-01-01'");
+    expect(having.detail).toContain('COUNT(*) > 3');
+  });
 });
