@@ -93,41 +93,24 @@ export function OutputPreview({
       </div>
 
       {!collapsed ? (
-        <div className="output-preview-table-wrap">
-          <table className="output-preview-table">
-            <thead>
-              <tr>
-                <th>字段</th>
-                <th>类型</th>
-                <th>来源</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const unknown = row.output === '*' || row.output.endsWith('.*');
-                return (
-                  <tr key={row.id}>
-                    <td>
-                      <code className="output-preview-name" title={row.output}>
-                        {row.output}
-                      </code>
-                    </td>
-                    <td>
-                      <span className="output-preview-type">{row.type ?? '—'}</span>
-                    </td>
-                    <td>
-                      <span className="output-preview-source" title={row.source}>
-                        {row.source}
-                      </span>
-                      {unknown ? (
-                        <span className="output-preview-unknown">具体列未知</span>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="output-preview-flow" role="list" aria-label="字段与来源">
+          {rows.map((row) => {
+            const unknown = row.output === '*' || row.output.endsWith('.*');
+            return (
+              <div className="output-preview-item" key={row.id} role="listitem">
+                <code className="output-preview-name" title={row.output}>
+                  {row.output}
+                </code>
+                <span
+                  className={`output-preview-source${unknown ? ' is-unknown' : ''}`}
+                  title={`${row.source}${row.type ? ` · ${row.type}` : ''}`}
+                >
+                  {row.source}
+                  {unknown ? <em>具体列未知</em> : null}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </aside>

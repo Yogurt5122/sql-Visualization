@@ -3,7 +3,7 @@ import { buildFlow, type FlowStep } from './core/flow';
 import { buildStructure, type StructureNode } from './core/structure';
 import { DIALECT_LABEL, DIALECT_OPTIONS } from './core/dialects';
 import { containsMybatisTags } from './core/mybatis-tags';
-import type { Clause, Dialect, Issue, MybatisVariant } from './core/types';
+import type { Clause, Dialect, Explanation, Issue, MybatisVariant } from './core/types';
 import { useAnalysis } from './hooks/useAnalysis';
 import { usePwa } from './hooks/usePwa';
 import { useTheme, type ThemeMode } from './hooks/useTheme';
@@ -14,6 +14,8 @@ import { RelationsView } from './ui/RelationsView';
 import { OutputPreview } from './ui/OutputPreview';
 import { FlowDetail } from './ui/FlowDetail';
 import { SelectMap } from './ui/SelectMap';
+import { RiskDialog } from './ui/RiskDialog';
+import { StructureDetail } from './ui/StructureDetail';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -122,6 +124,12 @@ export default function App() {
   } | null>(null);
   const [highlightTable, setHighlightTable] = useState<string>();
   const [highlightField, setHighlightField] = useState<string>();
+  const [riskOpen, setRiskOpen] = useState(false);
+  const [structureDetail, setStructureDetail] = useState<{
+    node: StructureNode;
+    explanations: Explanation[];
+    snippet: string;
+  } | null>(null);
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
     null,
   );
@@ -190,6 +198,27 @@ export default function App() {
     requestScroll(node.startLine);
   };
 
+  const handleExplainNode = (node: StructureNode) => {
+    const related = analysis.explanations.filter((explanation) => {
+      const clause = clauses.find((item) => item.id === explanation.clauseId);
+      if (!clause) return false;
+      return (
+        (clause.span.startLine >= node.startLine && clause.span.endLine <= node.endLine) ||
+        (clause.span.startLine <= node.startLine && clause.span.endLine >= node.startLine)
+      );
+    });
+    const lines = sql.split('\n');
+    const snippet = lines
+      .slice(Math.max(0, node.startLine - 1), node.endLine)
+      .join('\n')
+      .slice(0, 1400);
+    setStructureDetail({
+      node,
+      explanations: related.slice(0, 6),
+      snippet,
+    });
+  };
+
   const handleSelectLine = (line: number) => {
     setActiveLine(line);
     requestScroll(line);
@@ -210,6 +239,7 @@ export default function App() {
   })();
 
   const handleSelectIssue = (issue: Issue) => {
+    setRiskOpen(false);
     if (!issue.clauseId) return;
     const clause = clauses.find((item) => item.id === issue.clauseId);
     if (clause) handleSelectClause(clause);
@@ -269,6 +299,8 @@ export default function App() {
     setFlowDetail(null);
     setHighlightTable(undefined);
     setHighlightField(undefined);
+    setRiskOpen(false);
+    setStructureDetail(null);
   }, [sql]);
 
   useEffect(() => {
@@ -488,35 +520,54 @@ export default function App() {
             </div>
           ) : null}
 
-          <div className="metrics" role="list">
-            <div className="metric" role="listitem">
-              <span className="metric-value">{analysis.statements.length}</span>
-              <span className="metric-label">语句</span>
-            </div>
-            <div className="metric" role="listitem">
-              <span className="metric-value">{clauses.length}</span>
-              <span className="metric-label">子句</span>
-            </div>
-            <div className="metric" role="listitem">
-              <span className="metric-value">{analysis.issues.length}</span>
-              <span className="metric-label">风险</span>
-            </div>
-            <div className="metric" role="listitem">
-              <span className="metric-value">{lineCount}</span>
-              <span className="metric-label">行</span>
-            </div>
+          <div className="query-stats" role="list" aria-label="查询概览">
+            {analysis.statements.length > 1 ? (
+              <span className="query-stats-scope">语句 {statementIndex + 1}</span>
+            ) : null}
+            <span role="listitem">
+              <b>{analysis.statements.length}</b> 语句
+            </span>
+            <span role="listitem">
+              <b>{clauses.length}</b> 子句
+            </span>
+            <span role="listitem">
+              <b>{activeMetrics.tables}</b> 表
+            </span>
+            <span role="listitem">
+              <b>{activeMetrics.joins}</b> JOIN
+            </span>
+            <span role="listitem">
+              <b>{activeMetrics.outputs}</b> 输出
+            </span>
+            {analysis.issues.length > 0 ? (
+              <button
+                type="button"
+                className="query-stats-risk has-risk"
+                onClick={() => setRiskOpen(true)}
+              >
+                <b>{analysis.issues.length}</b> 风险
+                {highRiskCount > 0 ? <em>高 {highRiskCount}</em> : null}
+              </button>
+            ) : (
+              <span role="listitem">
+                <b>0</b> 风险
+              </span>
+            )}
+            <span role="listitem">
+              <b>{lineCount}</b> 行
+            </span>
+            <span role="listitem" className="query-stats-depth">
+              深度 {activeMetrics.depth} · 复杂度 {activeMetrics.complexity}
+            </span>
           </div>
 
-          <div className="metric-strip" role="list" aria-label="结构指标">
-            {analysis.statements.length > 1 ? (
-              <span className="metric-scope">语句 {statementIndex + 1} 指标</span>
-            ) : null}
-            <span role="listitem">表 {activeMetrics.tables}</span>
-            <span role="listitem">JOIN {activeMetrics.joins}</span>
-            <span role="listitem">输出 {activeMetrics.outputs} 列</span>
-            <span role="listitem">嵌套深度 {activeMetrics.depth}</span>
-            <span role="listitem">复杂度 {activeMetrics.complexity}</span>
-          </div>
+          {structures.length > 0 && (
+            <StructureView
+              roots={structures}
+              activeLine={activeLine}
+              onExplain={handleExplainNode}
+            />
+          )}
 
           <SelectMap
             relations={analysis.relations[statementIndex]}
@@ -579,48 +630,6 @@ export default function App() {
             </details>
           )}
 
-          {analysis.issues.length > 0 && (
-            <section className="issues-card">
-              <h2>
-                风险体检
-                {analysis.statements.length > 1 ? (
-                  <span className="risk-scope">全文</span>
-                ) : null}
-                <span className="issue-count">{analysis.issues.length}</span>
-                {highRiskCount > 0 && <span className="issue-high">高 {highRiskCount}</span>}
-              </h2>
-              <ul>
-                {analysis.issues.map((issue) => (
-                  <li key={issue.id}>
-                    <button
-                      type="button"
-                      className="issue-button"
-                      onClick={() => handleSelectIssue(issue)}
-                    >
-                      <span className={`severity-dot severity-${issue.severity}`} aria-hidden="true" />
-                      <span className="issue-main">
-                        <span className="issue-title">
-                          <code>{issue.ruleId}</code> {issue.title}
-                          {issue.confidence === 'low' ? (
-                            <span className="issue-heuristic">启发式</span>
-                          ) : null}
-                        </span>
-                        <span className="issue-location">
-                          {issue.span ? `第 ${issue.span.startLine} 行` : statementLocation(issue)}
-                        </span>
-                        <span className="issue-detail">{issue.detail}</span>
-                        {issue.suggestion ? (
-                          <span className="issue-suggestion">建议：{issue.suggestion}</span>
-                        ) : null}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <p className="disclaimer">静态代码检查，不是执行计划，也不代表一定会慢。</p>
-            </section>
-          )}
-
           {flows.length > 0 && (
             <section className="flow-section" aria-label="执行流程">
               <div className="flow-head">
@@ -640,14 +649,6 @@ export default function App() {
                 </div>
               ))}
             </section>
-          )}
-
-          {structures.length > 0 && (
-            <StructureView
-              roots={structures}
-              activeLine={activeLine}
-              onSelect={handleSelectNode}
-            />
           )}
 
           {analysis.relations.length > 0 && (
@@ -684,10 +685,34 @@ export default function App() {
         />
       ) : null}
 
+      {riskOpen ? (
+        <RiskDialog
+          issues={analysis.issues}
+          highRiskCount={highRiskCount}
+          statementCount={analysis.statements.length}
+          onClose={() => setRiskOpen(false)}
+          onSelectIssue={handleSelectIssue}
+          statementLocation={statementLocation}
+        />
+      ) : null}
+
+      {structureDetail ? (
+        <StructureDetail
+          node={structureDetail.node}
+          explanations={structureDetail.explanations}
+          snippet={structureDetail.snippet}
+          onClose={() => setStructureDetail(null)}
+          onLocate={() => {
+            handleSelectNode(structureDetail.node);
+            setStructureDetail(null);
+          }}
+        />
+      ) : null}
+
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.6.2
+          左侧色条对应子句 · 点击行可定位 · v0.6.3
         </span>
       </footer>
     </div>

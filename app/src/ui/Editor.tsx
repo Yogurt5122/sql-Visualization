@@ -77,7 +77,7 @@ const editorTheme = EditorView.theme({
   },
   '.cm-scroller': {
     fontFamily:
-      'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+      '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", Consolas, "SFMono-Regular", ui-monospace, monospace',
     lineHeight: '1.7',
   },
   '.cm-content': {

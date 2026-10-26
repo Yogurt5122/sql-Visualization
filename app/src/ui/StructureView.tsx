@@ -5,7 +5,7 @@ import { filterStructure, findActiveNode } from '../core/structure';
 export interface StructureViewProps {
   roots: StructureNode[];
   activeLine: number;
-  onSelect: (node: StructureNode) => void;
+  onExplain: (node: StructureNode) => void;
 }
 
 interface TreeRowProps {
@@ -15,7 +15,7 @@ interface TreeRowProps {
   collapsed: Set<string>;
   forceExpand: boolean;
   onToggle: (id: string) => void;
-  onSelect: (node: StructureNode) => void;
+  onExplain: (node: StructureNode) => void;
 }
 
 function TreeRow({
@@ -25,7 +25,7 @@ function TreeRow({
   collapsed,
   forceExpand,
   onToggle,
-  onSelect,
+  onExplain,
 }: TreeRowProps) {
   const hasChildren = node.children.length > 0;
   const isCollapsed = hasChildren && collapsed.has(node.id) && !forceExpand;
@@ -53,8 +53,8 @@ function TreeRow({
         <button
           type="button"
           className="tree-label"
-          onClick={() => onSelect(node)}
-          title={node.label}
+          onClick={() => onExplain(node)}
+          title={`${node.label} · 查看解释`}
         >
           {node.label}
         </button>
@@ -77,7 +77,7 @@ function TreeRow({
               collapsed={collapsed}
               forceExpand={forceExpand}
               onToggle={onToggle}
-              onSelect={onSelect}
+              onExplain={onExplain}
             />
           ))}
         </div>
@@ -86,7 +86,7 @@ function TreeRow({
   );
 }
 
-export function StructureView({ roots, activeLine, onSelect }: StructureViewProps) {
+export function StructureView({ roots, activeLine, onExplain }: StructureViewProps) {
   const [open, setOpen] = useState(true);
   const [query, setQuery] = useState('');
   const [onlyTables, setOnlyTables] = useState(false);
@@ -159,7 +159,7 @@ export function StructureView({ roots, activeLine, onSelect }: StructureViewProp
                   collapsed={collapsed}
                   forceExpand={forceExpand}
                   onToggle={toggle}
-                  onSelect={onSelect}
+                  onExplain={onExplain}
                 />
               ))
             )}
