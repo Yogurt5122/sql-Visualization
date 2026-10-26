@@ -29,6 +29,7 @@ export function FlowView({ steps, activeStepId, onSelect }: FlowViewProps) {
             title={`${step.label}：第 ${step.startLine}–${step.endLine} 行`}
           >
             <span className="flow-index">{index + 1}</span>
+            {step.branch ? <span className="flow-branch">分支 {step.branch}</span> : null}
             <span className="flow-label">{step.label}</span>
             <span className="flow-title">{step.title}</span>
             <span className="flow-detail">{step.detail}</span>

@@ -801,6 +801,16 @@ button {
   color: var(--flow-color);
 }
 
+.flow-branch {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .flow-title {
   font-size: 13px;
   font-weight: 600;
@@ -2214,8 +2224,8 @@ button {
   color: var(--muted);
 }
 
+.output-preview-copy,
 .output-preview-toggle {
-  margin-left: auto;
   padding: 2px 6px;
   border: 1px solid var(--line);
   border-radius: 5px;
@@ -2225,8 +2235,23 @@ button {
   cursor: pointer;
 }
 
+.output-preview-copy {
+  margin-left: auto;
+}
+
+.output-preview-toggle {
+  margin-left: 0;
+}
+
+.output-preview-copy:hover,
+.output-preview-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
 .output-preview-table-wrap {
   overflow: auto;
+  max-height: 180px;
 }
 
 .output-preview-table {
@@ -2250,7 +2275,12 @@ button {
 
 .output-preview-table th:first-child,
 .output-preview-table td:first-child {
-  width: 38%;
+  width: 32%;
+}
+
+.output-preview-table th:nth-child(2),
+.output-preview-table td:nth-child(2) {
+  width: 20%;
 }
 
 .output-preview-table td {
@@ -2264,10 +2294,21 @@ button {
 }
 
 .output-preview-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-preview-type {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .output-preview-source {

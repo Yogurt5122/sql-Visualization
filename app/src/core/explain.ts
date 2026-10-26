@@ -2,6 +2,7 @@ import { resolveDialect } from './dialects';
 import { scan } from './scanner';
 import { splitStatements } from './splitter';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
+import { parseDdlSchema, resolveSourceTypes } from './ddl';
 import { buildMetrics, buildRelations, mergeMetrics } from './relations';
 import { runRules } from './rules';
 import { buildSemanticQuery, buildSemanticRelations, parseSemantic, summarizeSemantic } from '../parsers/semantic';
@@ -558,6 +559,16 @@ export function analyzeSql(
     mode = 'semantic';
   } else {
     relations = statements.map((statement) => buildRelations(statement));
+  }
+
+  const ddlSchema = parseDdlSchema(cleanSql);
+  if (ddlSchema.size > 0) {
+    for (const relation of relations) {
+      for (const row of relation.lineage) {
+        const type = resolveSourceTypes(row.source, ddlSchema);
+        if (type) row.type = type;
+      }
+    }
   }
 
   const explanations = buildExplanations(statements, relations);

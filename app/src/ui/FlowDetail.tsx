@@ -52,12 +52,13 @@ export function FlowDetail({
   const stepIssues = issues.filter(
     (issue) => issue.clauseId && step.clauseIds.includes(issue.clauseId),
   );
-  const fields = step.kind === 'select' ? relations?.lineage ?? [] : [];
+  const fields =
+    step.kind === 'select' && !step.branch ? relations?.lineage ?? [] : [];
   const sources =
-    step.kind === 'source' || step.kind === 'window'
+    !step.branch && (step.kind === 'source' || step.kind === 'window')
       ? relations?.sources ?? []
       : [];
-  const joins = step.kind === 'source' ? relations?.joins ?? [] : [];
+  const joins = !step.branch && step.kind === 'source' ? relations?.joins ?? [] : [];
   const sourceName = (id: string) =>
     relations?.sources.find((source) => source.id === id)?.name ?? id;
 
@@ -82,6 +83,7 @@ export function FlowDetail({
             <h3 id="flow-detail-title">{step.title}</h3>
             <p>
               {statementCount > 1 ? `语句 ${statementIndex + 1} · ` : ''}
+              {step.branch ? `分支 ${step.branch} · ` : ''}
               L{step.startLine}
               {step.endLine !== step.startLine ? `–${step.endLine}` : ''}
             </p>

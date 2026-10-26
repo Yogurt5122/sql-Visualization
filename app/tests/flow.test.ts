@@ -80,19 +80,35 @@ describe('buildFlow', () => {
     expect(select.detail).toContain('amount');
   });
 
-  it('UNION ALL 会生成独立的合并阶段', () => {
+  it('UNION ALL 会生成主查询、分支和合并阶段', () => {
     const steps = flowOf(
-      'SELECT id FROM a UNION ALL SELECT id FROM b',
+      'SELECT id FROM t_demo_a UNION ALL SELECT id FROM t_demo_b',
     );
     const union = steps.find((step) => step.kind === 'union')!;
 
     expect(steps.map((step) => step.label)).toEqual([
       'FROM / JOIN',
       'SELECT',
+      'FROM / JOIN',
+      'SELECT',
       'UNION ALL',
     ]);
+    expect(steps.slice(0, 2).every((step) => step.branch === undefined)).toBe(true);
+    expect(steps.slice(2, 4).every((step) => step.branch === 1)).toBe(true);
+    expect(union.branch).toBeUndefined();
     expect(union.title).toBe('合并结果');
     expect(union.detail).toBe('合并 2 个分支，保留重复行');
+  });
+
+  it('连续 UNION 会为每个分支生成流程', () => {
+    const steps = flowOf(
+      'SELECT id FROM t_demo_a UNION ALL SELECT id FROM t_demo_b UNION SELECT id FROM t_demo_c',
+    );
+    const union = steps.find((step) => step.kind === 'union')!;
+
+    expect(steps.filter((step) => step.branch === 1)).toHaveLength(2);
+    expect(steps.filter((step) => step.branch === 2)).toHaveLength(2);
+    expect(union.detail).toBe('合并 3 个分支，保留重复行');
   });
 
   it('JOIN / WHERE / HAVING 流程卡写到具体键和条件', () => {

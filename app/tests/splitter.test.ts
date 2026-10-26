@@ -94,4 +94,48 @@ describe('splitStatements', () => {
     ]);
     expect(statements[0]?.clauses[2]?.text).toContain('UNION ALL');
   });
+
+  it('括号包裹的 UNION 仍是一条语句', () => {
+    const statements = split(
+      '(SELECT id FROM t_demo_a) UNION ALL (SELECT id FROM t_demo_b);',
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.kind).toBe('select');
+    expect(statements[0]?.clauses.some((clause) => clause.kind === 'union')).toBe(true);
+  });
+
+  it('连续多个 UNION 不会拆成多条语句', () => {
+    const statements = split(
+      'SELECT id FROM t_demo_a UNION ALL SELECT id FROM t_demo_b UNION SELECT id FROM t_demo_c;',
+    );
+    expect(statements).toHaveLength(1);
+    expect(
+      statements[0]?.clauses.filter((clause) => clause.kind === 'union'),
+    ).toHaveLength(2);
+  });
+
+  it('WITH + UNION 保持一条语句', () => {
+    const statements = split(
+      'WITH x AS (SELECT id FROM t_demo_a) SELECT id FROM x UNION ALL SELECT id FROM t_demo_b;',
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.kind).toBe('select');
+    expect(statements[0]?.clauses.some((clause) => clause.kind === 'union')).toBe(true);
+  });
+
+  it('UNION 中间夹注释不影响切分', () => {
+    const statements = split(
+      'SELECT id FROM t_demo_a -- keep\nUNION ALL /* keep */ SELECT id FROM t_demo_b;',
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.clauses.some((clause) => clause.kind === 'union')).toBe(true);
+  });
+
+  it('紧邻多语句按分号切成两条', () => {
+    const statements = split(
+      'SELECT id FROM t_demo_a;SELECT id FROM t_demo_b;',
+    );
+    expect(statements).toHaveLength(2);
+    expect(statements.every((statement) => statement.kind === 'select')).toBe(true);
+  });
 });

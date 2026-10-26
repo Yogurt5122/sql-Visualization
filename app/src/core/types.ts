@@ -129,6 +129,8 @@ export interface LineageRow {
   source: string;
   via?: string[];
   transform: LineageTransform;
+  /** 有 CREATE TABLE 时从 DDL 推断的类型 */
+  type?: string;
   line: number;
   confidence: 'exact' | 'partial' | 'unknown';
 }

@@ -36,6 +36,8 @@ export interface FlowStep {
   startLine: number;
   endLine: number;
   clauseIds: string[];
+  /** UNION 分支序号；主查询为空 */
+  branch?: number;
 }
 
 function makeStep(
@@ -46,11 +48,12 @@ function makeStep(
   detail: string,
   effect: FlowEffect,
   clauses: Clause[],
+  branch?: number,
 ): FlowStep {
   const startLine = Math.min(...clauses.map((clause) => clause.span.startLine));
   const endLine = Math.max(...clauses.map((clause) => clause.span.endLine));
   return {
-    id: `${statement.id}-${kind}`,
+    id: `${statement.id}-${kind}${branch ? `-branch-${branch}` : ''}`,
     kind,
     label,
     title,
@@ -59,6 +62,7 @@ function makeStep(
     startLine,
     endLine,
     clauseIds: clauses.map((clause) => clause.id),
+    ...(branch ? { branch } : {}),
   };
 }
 
@@ -79,14 +83,23 @@ function joinConditionText(text: string): string | undefined {
   return undefined;
 }
 
-/**
- * 以数据库的**逻辑求值顺序**生成执行流程，而不是 SQL 的书写顺序。
- *
- * FROM/JOIN → WHERE → GROUP BY → HAVING → 窗口 → SELECT → DISTINCT → ORDER BY → LIMIT
- */
-export function buildFlow(
+function sourceNamesFromClause(from: Clause): string[] {
+  const body = stripLeadingKeyword(from.text, 'FROM');
+  return splitTopLevel(body, ',')
+    .map((part) => {
+      const clean = part.trim();
+      if (clean.startsWith('(')) return '子查询';
+      const match = /^([`"\[][^`"\]]+[`"\]]|[\w$#.]+)/.exec(clean);
+      return match?.[1]?.replace(/[`"\[\]]/g, '') ?? '';
+    })
+    .filter(Boolean);
+}
+
+function buildSegment(
   statement: Statement,
   relations?: Relations,
+  includeTail = true,
+  useRelations = true,
 ): FlowStep[] {
   const steps: FlowStep[] = [];
   const find = (kind: Clause['kind']): Clause | undefined =>
@@ -97,14 +110,15 @@ export function buildFlow(
   const where = find('where');
   const groupBy = find('groupBy');
   const having = find('having');
-  const unions = statement.clauses.filter((clause) => clause.kind === 'union');
   const select = find('select');
   const orderBy = find('orderBy');
   const limit = find('limit');
 
   if (from) {
     const sourceCount = countItems(stripLeadingKeyword(from.text, 'FROM')) + joins.length;
-    const tableNames = [...new Set((relations?.sources ?? []).map((source) => source.name))];
+    const tableNames = useRelations
+      ? [...new Set((relations?.sources ?? []).map((source) => source.name))]
+      : sourceNamesFromClause(from);
     const conditions = joins
       .map((clause) => joinConditionText(clause.text))
       .filter((condition): condition is string => Boolean(condition));
@@ -209,25 +223,7 @@ export function buildFlow(
     }
   }
 
-  if (unions.length > 0) {
-    const all = unions.some((clause) => /\bUNION\s+ALL\b/i.test(clause.text));
-    const label = all ? 'UNION ALL' : 'UNION';
-    steps.push(
-      makeStep(
-        statement,
-        'union',
-        label,
-        '合并结果',
-        all
-          ? `合并 ${unions.length + 1} 个分支，保留重复行`
-          : `合并 ${unions.length + 1} 个分支并去重`,
-        'union',
-        unions,
-      ),
-    );
-  }
-
-  if (orderBy) {
+  if (includeTail && orderBy) {
     const items = splitTopLevel(stripLeadingKeyword(orderBy.text, 'ORDER BY'), ',');
     steps.push(
       makeStep(
@@ -242,11 +238,124 @@ export function buildFlow(
     );
   }
 
-  if (limit) {
+  if (includeTail && limit) {
     const value = /\d+/.exec(limit.text)?.[0] ?? '若干';
     steps.push(
       makeStep(statement, 'limit', 'LIMIT', '截断', `只取前 ${value} 行`, 'truncate', [limit]),
     );
+  }
+
+  return steps;
+}
+
+interface UnionSegments {
+  main: Clause[];
+  branches: Clause[][];
+  unions: Clause[];
+}
+
+function splitUnionSegments(statement: Statement): UnionSegments {
+  const segments: Clause[][] = [[]];
+  const unions: Clause[] = [];
+
+  for (const clause of statement.clauses) {
+    if (clause.kind === 'union') {
+      unions.push(clause);
+      segments.push([]);
+      continue;
+    }
+    segments[segments.length - 1]!.push(clause);
+  }
+
+  return {
+    main: segments[0]!,
+    branches: segments.slice(1),
+    unions,
+  };
+}
+
+/**
+ * 以数据库的**逻辑求值顺序**生成执行流程，而不是 SQL 的书写顺序。
+ *
+ * 主查询 → 各 UNION 分支 → UNION 合并 → 全局 ORDER BY / LIMIT
+ */
+export function buildFlow(
+  statement: Statement,
+  relations?: Relations,
+): FlowStep[] {
+  const { main, branches, unions } = splitUnionSegments(statement);
+  const isUnion = unions.length > 0;
+  const steps: FlowStep[] = [];
+
+  steps.push(
+    ...buildSegment(
+      { ...statement, clauses: main },
+      relations,
+      !isUnion,
+      !isUnion,
+    ),
+  );
+
+  branches.forEach((clauses, index) => {
+    const branch = index + 1;
+    const branchStatement: Statement = {
+      ...statement,
+      id: `${statement.id}-branch-${branch}`,
+      clauses,
+    };
+    steps.push(
+      ...buildSegment(branchStatement, undefined, false, false).map((step) => ({
+        ...step,
+        branch,
+      })),
+    );
+  });
+
+  if (isUnion) {
+    steps.push(
+      ...buildSegment(
+        {
+          ...statement,
+          id: `${statement.id}-union`,
+          clauses: unions,
+        },
+        undefined,
+        false,
+      ),
+    );
+
+    const all = unions.some((clause) => /\bUNION\s+ALL\b/i.test(clause.text));
+    const label = all ? 'UNION ALL' : 'UNION';
+    steps.push({
+      id: `${statement.id}-union-merge`,
+      kind: 'union',
+      label,
+      title: '合并结果',
+      detail: all
+        ? `合并 ${branches.length + 1} 个分支，保留重复行`
+        : `合并 ${branches.length + 1} 个分支并去重`,
+      effect: 'union',
+      startLine: Math.min(...unions.map((clause) => clause.span.startLine)),
+      endLine: Math.max(...unions.map((clause) => clause.span.endLine)),
+      clauseIds: unions.map((clause) => clause.id),
+    });
+
+    const tailClauses = statement.clauses.filter(
+      (clause) => clause.kind === 'orderBy' || clause.kind === 'limit',
+    );
+    if (tailClauses.length > 0) {
+      steps.push(
+        ...buildSegment(
+          {
+            ...statement,
+            id: `${statement.id}-tail`,
+            clauses: tailClauses,
+          },
+          undefined,
+          true,
+        ),
+      );
+    }
   }
 
   return steps;
