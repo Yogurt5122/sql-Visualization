@@ -146,14 +146,26 @@ function buildSegment(
   }
 
   if (where) {
-    const condition = compactSql(stripLeadingKeyword(where.text, 'WHERE'));
+    const rawCondition = compactSql(stripLeadingKeyword(where.text, 'WHERE'));
+    const condition = rawCondition
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/--.*$/gm, '')
+      .trim();
+    const filters = relations?.filters ?? [];
+    const nestedFilters = filters.filter((filter) => filter.parentId);
+    const rootFilter = filters.find((filter) => !filter.parentId);
+    const detail = condition
+      ? `过滤 ${condition}${rootFilter?.placeholder ? '（占位）' : ''}${
+          nestedFilters.length > 0 ? ` · 内层 ${nestedFilters.length} 个条件` : ''
+        }`
+      : '只保留满足条件的行';
     steps.push(
       makeStep(
         statement,
         'where',
         'WHERE',
         '过滤',
-        condition ? `过滤 ${condition}` : '只保留满足条件的行',
+        detail,
         'filter',
         [where],
       ),

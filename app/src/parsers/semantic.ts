@@ -6,6 +6,7 @@ import type {
   LineageTransform,
   RelationJoin,
   RelationSource,
+  RelationFilter,
   Relations,
   ResolvedDialect,
   SemanticClause,
@@ -303,6 +304,8 @@ export function buildSemanticRelations(
   const sources: RelationSource[] = [];
   const byKey = new Map<string, RelationSource>();
   const joins: RelationJoin[] = [];
+  const dependencies: RelationJoin[] = [];
+  const filters: RelationFilter[] = [];
   const cteNames = new Set<string>();
   const cteMap = new Map<string, AstNode>();
 
@@ -321,9 +324,13 @@ export function buildSemanticRelations(
     alias: string | undefined,
     kind: RelationSource['kind'],
     line: number,
+    meta?: { parentId?: string; depth?: number; queryId?: string },
   ) => {
-    const key = (alias ?? name).toLowerCase();
-    const existing = byKey.get(key);
+    const isRoot = !meta?.queryId;
+    const key = isRoot
+      ? (alias ?? name).toLowerCase()
+      : `${meta.queryId}:${(alias ?? name).toLowerCase()}`;
+    const existing = isRoot ? byKey.get(key) : undefined;
     if (existing) return existing;
     const source: RelationSource = {
       id: `${idPrefix}-sem-src-${sources.length + 1}`,
@@ -331,12 +338,123 @@ export function buildSemanticRelations(
       alias,
       kind,
       line,
+      ...(meta ?? {}),
     };
     sources.push(source);
-    byKey.set(key, source);
-    if (!byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), source);
+    if (isRoot) {
+      byKey.set(key, source);
+      if (!byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), source);
+    }
     return source;
   };
+
+  const addFilter = (
+    queryAst: AstNode,
+    queryId: string,
+    parentId: string | undefined,
+    depth: number,
+  ) => {
+    if (!queryAst.where) return;
+    const raw = textOf(sql, queryAst.where).trim();
+    if (!raw) return;
+    const normalized = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/--.*$/gm, '')
+      .trim();
+    filters.push({
+      id: `${idPrefix}-filter-${filters.length + 1}`,
+      queryId,
+      parentId,
+      depth,
+      text: raw,
+      line: nodeLoc(queryAst.where).line ?? 1,
+      placeholder: /^1\s*=\s*1$/i.test(normalized),
+    });
+  };
+
+  let nestedSeq = 0;
+
+  function collectNested(
+    queryAst: AstNode,
+    parentSource: RelationSource | undefined,
+    depth: number,
+    queryId: string,
+  ): void {
+    const items = (queryAst.from as AstNode[] | undefined) ?? [];
+    let firstChild: RelationSource | undefined;
+
+    for (const item of items) {
+      const line = nodeLoc(item).line ?? 1;
+      const alias = aliasOf(item.as);
+      let source: RelationSource | undefined;
+
+      if (typeof item.table === 'string') {
+        source = addSource(item.table, alias, sourceKind(item.table, cteNames), line, {
+          parentId: parentSource?.id,
+          depth,
+          queryId,
+        });
+      } else if (item.table && typeof item.table === 'object') {
+        source = addSource('子查询', alias, 'subquery', line, {
+          parentId: parentSource?.id,
+          depth,
+          queryId,
+        });
+      } else if (item.expr && typeof item.expr === 'object') {
+        source = addSource('子查询', alias, 'subquery', line, {
+          parentId: parentSource?.id,
+          depth,
+          queryId,
+        });
+      }
+
+      if (!source) continue;
+      if (!firstChild) firstChild = source;
+
+      if (item.join && firstChild && source.id !== firstChild.id) {
+        joins.push({
+          id: `${idPrefix}-sem-join-${joins.length + 1}`,
+          from: firstChild.id,
+          to: source.id,
+          type: joinTypeOf(item.join),
+          condition: item.on ? exprText(sql, item.on) || undefined : undefined,
+          line,
+          queryId,
+          parentId: parentSource?.id,
+          depth,
+        });
+      }
+
+      const nestedAst =
+        item.expr?.ast ??
+        (item.table && typeof item.table === 'object' ? item.table : undefined);
+      if (nestedAst) {
+        nestedSeq += 1;
+        collectNested(
+          nestedAst,
+          source,
+          depth + 1,
+          `${idPrefix}-q-sub-${nestedSeq}`,
+        );
+      }
+    }
+
+    addFilter(queryAst, queryId, parentSource?.id, depth);
+
+    if (parentSource && firstChild) {
+      dependencies.push({
+        id: `${idPrefix}-sem-subquery-${dependencies.length + 1}`,
+        from: parentSource.id,
+        to: firstChild.id,
+        type: 'unknown',
+        condition: '子查询',
+        line: firstChild.line,
+        queryId,
+        parentId: parentSource.id,
+        depth,
+      });
+    }
+  }
 
   const mainRef: { source?: RelationSource } = {};
   const fromItems = (root.from as AstNode[] | undefined) ?? [];
@@ -357,6 +475,14 @@ export function buildSemanticRelations(
     if (!source) continue;
     if (!mainRef.source) mainRef.source = source;
 
+    const nestedAst =
+      item.expr?.ast ??
+      (item.table && typeof item.table === 'object' ? item.table : undefined);
+    if (nestedAst) {
+      nestedSeq += 1;
+      collectNested(nestedAst, source, 1, `${idPrefix}-q-sub-${nestedSeq}`);
+    }
+
     if (item.join && mainRef.source && source.id !== mainRef.source.id) {
       joins.push({
         id: `${idPrefix}-sem-join-${joins.length + 1}`,
@@ -369,7 +495,8 @@ export function buildSemanticRelations(
     }
   }
 
-  const main = mainRef.source;
+  const main = mainRef.source; 
+  addFilter(root, `${idPrefix}-q0`, undefined, 0);
 
   // 逗号连接：from 中有多个基础表但没有 join
   if (main && joins.length === 0) {
@@ -386,7 +513,6 @@ export function buildSemanticRelations(
   }
 
   // CTE 追底层表：只把依赖边放在 dependencies，不计入 joins 指标
-  const dependencies: RelationJoin[] = [];
   for (const source of [...sources]) {
     if (source.kind !== 'cte') continue;
     const body = cteMap.get(source.name.toLowerCase());
@@ -579,7 +705,7 @@ export function buildSemanticRelations(
     nextBranch = nextBranch._next;
   }
 
-  return { sources, joins, dependencies, lineage };
+  return { sources, joins, dependencies, filters, lineage };
 }
 
 interface ResolvedRef {
@@ -668,12 +794,17 @@ function resolveColumnInQuery(
   const target = column.toLowerCase();
 
   // 子查询输出列可能是派生列，例如 COUNT(*) AS CNT。
-  // 必须先按 SELECT 别名找定义，不能直接把它当成底层表的同名字段。
+  // 也必须支持没有 AS 的直接列引用，例如 t1.value_1。
   for (const item of queryAst.columns ?? []) {
     const alias = aliasOf(item.as);
-    if (!alias || alias.toLowerCase() !== target || !item.expr) continue;
-
     const expr = item.expr;
+    if (!expr) continue;
+
+    const outputName =
+      alias ??
+      (expr.type === 'column_ref' ? String(expr.column ?? '') : undefined);
+    if (!outputName || outputName.toLowerCase() !== target) continue;
+
     const transform = transformOf(expr);
     const refs = collectRefs(expr);
 
@@ -684,7 +815,7 @@ function resolveColumnInQuery(
     ) {
       return {
         source: '按行计数',
-        via: [],
+        via: alias ? [alias] : [],
         exact: true,
         transform: 'aggregate',
       };
@@ -696,7 +827,7 @@ function resolveColumnInQuery(
       );
       return {
         source: literal ? '常量' : '表达式',
-        via: [],
+        via: alias ? [alias] : [],
         exact: false,
         transform,
       };
@@ -706,7 +837,7 @@ function resolveColumnInQuery(
     if (!nested) return null;
     return {
       ...nested,
-      via: [alias, ...nested.via],
+      via: alias ? [alias, ...nested.via] : nested.via,
       transform,
     };
   }

@@ -100,6 +100,11 @@ export interface RelationSource {
   alias?: string;
   kind: RelationSourceKind;
   line: number;
+  /** 所属查询块；用于嵌套子查询分组 */
+  queryId?: string;
+  /** 外层派生表节点 id */
+  parentId?: string;
+  depth?: number;
 }
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross' | 'unknown';
@@ -111,6 +116,19 @@ export interface RelationJoin {
   type: JoinType;
   condition?: string;
   line: number;
+  queryId?: string;
+  parentId?: string;
+  depth?: number;
+}
+
+export interface RelationFilter {
+  id: string;
+  queryId: string;
+  parentId?: string;
+  depth: number;
+  text: string;
+  line: number;
+  placeholder: boolean;
 }
 
 export type LineageTransform =
@@ -139,6 +157,7 @@ export interface Relations {
   sources: RelationSource[];
   joins: RelationJoin[];
   dependencies?: RelationJoin[];
+  filters?: RelationFilter[];
   lineage: LineageRow[];
 }
 

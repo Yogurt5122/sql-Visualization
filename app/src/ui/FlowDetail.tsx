@@ -59,6 +59,7 @@ export function FlowDetail({
       ? relations?.sources ?? []
       : [];
   const joins = !step.branch && step.kind === 'source' ? relations?.joins ?? [] : [];
+  const filters = step.kind === 'where' ? relations?.filters ?? [] : [];
   const sourceName = (id: string) =>
     relations?.sources.find((source) => source.id === id)?.name ?? id;
 
@@ -99,6 +100,40 @@ export function FlowDetail({
         </header>
 
         <p className="flow-detail-summary">{step.detail}</p>
+
+        {filters.length > 0 ? (
+          <div className="flow-detail-block">
+            <h4>查询块条件</h4>
+            <div className="flow-detail-table-wrap">
+              <table className="flow-detail-table">
+                <thead>
+                  <tr>
+                    <th>查询块</th>
+                    <th>条件</th>
+                    <th>行</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filters.map((filter) => (
+                    <tr key={filter.id}>
+                      <td>
+                        {filter.parentId ? '内层查询' : '主查询'}
+                        {filter.placeholder ? (
+                          <span className="flow-detail-placeholder">占位</span>
+                        ) : null}
+                      </td>
+                      <td>
+                        <code className="flow-detail-condition">{filter.text}</code>
+                        {filter.placeholder ? <small>无实际过滤</small> : null}
+                      </td>
+                      <td>L{filter.line}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
 
         {fields.length > 0 ? (
           <div className="flow-detail-block">

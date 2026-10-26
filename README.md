@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.6.1**：字段地图与表关系图联动；点击字段高亮来源表和 JOIN 路径；节点直接列出本次用到的字段。
+> 当前 **0.6.2**：修正派生表直接列来源；递归展开内部表和 JOIN；WHERE 按查询块展示。
 
 ---
 
@@ -32,6 +32,7 @@
 
 | 版本 | 更新了啥 |
 | --- | --- |
+| 0.6.2 | 派生表无别名直接列解析到真实表；递归展开内部表和 JOIN；WHERE 按查询块展示，外层 1=1 标为占位 |
 | 0.6.1 | 字段地图点击字段高亮表、字段和 JOIN 连线；表关系图节点列出本次用到的字段；JOIN 边补连接条件 |
 | 0.6.0 | 新增 SELECT 字段地图，按来源表着色；HAVING 解释 COUNT(*) 等聚合在算什么；指标卡、摘要卡、流程卡增加分类颜色 |
 | 0.5.6 | `SELECT *` 在 DDL 下展开具体字段和类型；复杂 CTE + 窗口 + UNION 验收；多 JOIN 流程卡写多个连接条件；截图统一为 `t_demo_*` |
@@ -90,7 +91,7 @@
 | 字段地图 | 结果区顶部直接展示 SELECT 输出字段、来源表和来源字段；点击字段高亮相关表、字段和 JOIN 连线，其余节点降噪 |
 | 预输出 | 编辑器下方表格，列字段、类型和来源；有 `CREATE TABLE` 时显示 DDL 类型，`SELECT *` 也展开成具体字段；支持复制字段、记住收起状态、长字段名省略和大量字段滚动 |
 | 结构树 | 语句 → 主查询 → 子句 → 子查询 / CTE / UNION 分支；FROM / WHERE / HAVING / SELECT 子查询都按所在子句展开，可折叠、搜索、只看含表，点击定位 |
-| 数据关系 | 表关系图节点列出本次用到的字段，JOIN 边显示条件；字段血缘 + 查询块；CTE 派生列继续追到底层定义，`SELECT *` 可穿已知 CTE / 派生表展开列；表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
+| 数据关系 | 表关系图节点列出本次用到的字段，JOIN 边显示条件；派生表内部表和 JOIN 会递归展开；字段血缘 + 查询块；CTE 派生列继续追到底层定义，`SELECT *` 可穿已知 CTE / 派生表展开列；表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
 | 多语句 | 结果区顶部「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 流程 / 解释仍展示全文 |
 | DML | INSERT / UPDATE / DELETE 只做结构解释，不生成关系 / 血缘；导出仍后置 |
 | 结构指标 | 表数、JOIN 数、输出列数、嵌套深度、复杂度；嵌套深度改用 QueryBlock 计算 |
@@ -101,7 +102,7 @@
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
 | 真实语料 | 51 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 95.5 ms；`pnpm bench` 可复现 |
-| 测试 | 187 个测试：136 个单元测试 + 51 条真实语料 |
+| 测试 | 189 个测试：138 个单元测试 + 51 条真实语料 |
 
 ### 解析失败时
 
@@ -152,7 +153,7 @@ cd app
 pnpm build:single
 ```
 
-产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.50 MB，gzip 约 0.78 MB。
+产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.51 MB，gzip 约 0.79 MB。
 
 ### 规划中
 
@@ -189,7 +190,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 187 个测试（136 单元 + 51 语料） |
+| `pnpm test` | 189 个测试（138 单元 + 51 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
 | `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
@@ -370,7 +371,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 204.8 KB gzip，`format` 按需 74 KB，Worker 解析包约 518.7 KB，CSS 7.4 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 205.1 KB gzip，`format` 按需 74 KB，Worker 解析包约 519.7 KB，CSS 7.5 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -423,7 +424,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 | M2 | 看懂 | 语义 AST、总结、结构树、MyBatis 容错、Worker | ✅ 完成 |
 | M3 | 看透 | 表关系、血缘、17 条规则、指标、DM8 `(+)` | 规则 17/17；UNION 血缘合并 / CTE 图追底 / 查询块图完成；DML 仅结构解释；导出后置 |
 | M4 | 可用 | 性能、PWA、单文件离线、暗色模式、发布 | 0.4.0–0.4.4 完成；1.0 发布待 M4-6 |
-| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情；0.5.2 UNION ALL + 移除逐句解释列表；0.5.3 派生列血缘；0.5.4 CTE 派生列 + SELECT * 展开 + JOIN/WHERE/HAVING 具体化；0.5.5 UNION 分支流程 + 预输出增强；0.5.6 SELECT * DDL 展开 + 多 JOIN + 验收；0.6.0 SELECT 字段地图 + HAVING 聚合解释 + 配色；0.6.1 字段地图联动 + 表节点字段 + JOIN 条件 |
+| M5 | 精进 | 预输出、解释到字段 / 来源、流程详情 | 0.5.0 预输出 + SELECT 具体化；0.5.1 流程详情；0.5.2 UNION ALL + 移除逐句解释列表；0.5.3 派生列血缘；0.5.4 CTE 派生列 + SELECT * 展开 + JOIN/WHERE/HAVING 具体化；0.5.5 UNION 分支流程 + 预输出增强；0.5.6 SELECT * DDL 展开 + 多 JOIN + 验收；0.6.0 SELECT 字段地图 + HAVING 聚合解释 + 配色；0.6.1 字段地图联动 + 表节点字段 + JOIN 条件；0.6.2 派生表直接列 + 内部 JOIN + WHERE 分块 |
 | V2 | 增强 | 两版对比、完整 MyBatis、DDL、AI（BYOK） | 想法池 |
 
 M4 只剩发布验收；导出仍放在最后，不阻塞 1.0。后续增强见 V2 想法池。

@@ -2840,3 +2840,26 @@ button {
 [data-theme='dark'] .rel-edge-label {
   stroke: var(--panel);
 }
+
+.flow-detail-placeholder {
+  margin-left: 5px;
+  padding: 0 4px;
+  color: var(--warning-ink);
+  border: 1px solid var(--warning-line);
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.flow-detail-condition {
+  display: block;
+  max-width: 420px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.flow-detail-block small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}

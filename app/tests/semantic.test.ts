@@ -297,4 +297,93 @@ FROM (
     expect(row?.source).toBe('t_demo_order.*');
     expect(row?.confidence).toBe('unknown');
   });
+
+  it('嵌套派生表：无别名直接列、内部 JOIN、WHERE 分块', () => {
+    const analysis = analyzeSql(
+      `SELECT *
+       FROM (
+         SELECT
+           t1.value_1,
+           t1.value_2,
+           t2.value_3 AS value_3
+         FROM t_demo_1 t1
+         LEFT JOIN t_demo_2 t2 ON t1.value_1 = t2.value_1
+         LEFT JOIN t_demo_3 t3 ON t1.value_2 = t3.value_1
+         WHERE t1.value_1 IN (
+           SELECT value_1 FROM t_demo_4 WHERE value_2 = 'x'
+         ) AND t1.value_3 = '0'
+       ) t_demo_all
+       WHERE 1 = 1 /*sqlwhere*/`,
+      'mysql',
+    );
+    const relation = analysis.relations[0]!;
+
+    expect(relation.sources.filter((source) => source.kind === 'table')).toHaveLength(3);
+    expect(relation.joins).toHaveLength(2);
+    expect(relation.lineage.map((row) => row.output)).toEqual([
+      'value_1',
+      'value_2',
+      'value_3',
+    ]);
+    expect(relation.lineage[0]?.source).toBe('t_demo_1.value_1');
+    expect(relation.lineage[0]?.via).toContain('t_demo_all');
+    expect(relation.lineage[2]?.source).toBe('t_demo_2.value_3');
+    expect(relation.filters?.some((filter) => filter.placeholder)).toBe(true);
+    expect(relation.filters?.filter((filter) => !filter.placeholder)).toHaveLength(1);
+    expect(analysis.metrics.tables).toBe(3);
+    expect(analysis.summary).toContain('内部 3 张表、2 个连接');
+    const where = analysis.statements[0]!.clauses.find((clause) => clause.kind === 'where')!;
+    const explanation = analysis.explanations.find((item) => item.clauseId === where.id)!;
+    expect(explanation.plain).toContain('占位条件');
+    expect(explanation.plain).toContain('内层查询还有 1 个过滤条件');
+  });
+
+  it('宽派生表的直接列与多个 JOIN 不丢来源', () => {
+    const baseFields = Array.from(
+      { length: 141 },
+      (_, index) => `t1.value_${index + 1}`,
+    );
+    const extraFields = [
+      't2.value_142 AS value_145',
+      't3.value_142 AS value_146',
+      't7.value_142 AS value_147',
+      't4.value_1 AS value_148',
+      't5.value_1 AS value_149',
+      't6.value_1 AS value_150',
+      't8.value_142 AS value_151',
+    ];
+    const analysis = analyzeSql(
+      `SELECT *
+       FROM (
+         SELECT
+           ${[...baseFields, ...extraFields].join(',\n')}
+         FROM t_demo_1 t1
+         LEFT JOIN t_demo_2 t2 ON t1.value_10 = t2.value_1
+         LEFT JOIN t_demo_3 t3 ON t1.value_138 = t3.value_1
+         LEFT JOIN t_demo_4 t4 ON t4.value_143 = t1.value_1
+         LEFT JOIN t_demo_5 t5 ON t5.value_143 = t1.value_1
+         LEFT JOIN t_demo_6 t6 ON t6.value_143 = t1.value_1
+         LEFT JOIN t_demo_2 t7 ON t1.value_8 = t7.value_1
+         LEFT JOIN t_demo_7 t8 ON t8.value_1 = t1.value_12
+         WHERE t1.value_12 IN (
+           SELECT value_1 FROM t_demo_7 WHERE value_144 = '123'
+         ) AND t1.value_112 = '0'
+       ) t_demo_all
+       WHERE 1 = 1 /*sqlwhere*/`,
+      'mysql',
+    );
+    const relation = analysis.relations[0]!;
+
+    expect(relation.lineage).toHaveLength(148);
+    expect(relation.lineage[0]?.source).toBe('t_demo_1.value_1');
+    expect(relation.lineage[140]?.source).toBe('t_demo_1.value_141');
+    expect(relation.lineage[141]?.source).toBe('t_demo_2.value_142');
+    const tableSources = relation.sources.filter((source) => source.kind === 'table');
+    expect(tableSources).toHaveLength(8);
+    expect(new Set(tableSources.map((source) => source.name))).toHaveLength(7);
+    expect(relation.joins).toHaveLength(7);
+    expect(analysis.metrics.tables).toBe(7);
+    expect(analysis.metrics.joins).toBe(7);
+    expect(relation.filters?.some((filter) => filter.placeholder)).toBe(true);
+  });
 });

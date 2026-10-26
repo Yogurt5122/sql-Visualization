@@ -434,7 +434,23 @@ function explainClause(
       return { plain: result.plain, refs: [...refs] };
     }
     case 'where': {
-      const conditions = splitConditions(stripLeadingKeyword(clause.text, 'WHERE'));
+      const raw = stripLeadingKeyword(clause.text, 'WHERE');
+      const normalized = raw
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/--.*$/gm, '')
+        .trim();
+      if (/^1\s*=\s*1$/i.test(normalized)) {
+        const nested = (relations?.filters ?? []).filter(
+          (filter) => filter.parentId && !filter.placeholder,
+        ).length;
+        return {
+          plain: `主查询 WHERE 是占位条件（1 = 1），不会实际过滤${
+            nested > 0 ? `；内层查询还有 ${nested} 个过滤条件。` : '。'
+          }`,
+          refs: [],
+        };
+      }
+      const conditions = splitConditions(raw);
       if (conditions.length === 0) return { plain: '没有有效的过滤条件。', refs: [] };
       const described = conditions.slice(0, 3).map(describeCondition);
       const suffix = conditions.length > 3 ? `等 ${conditions.length} 个条件` : '';
@@ -530,12 +546,33 @@ function findClause(statement: Statement, kind: Clause['kind']): Clause | undefi
 function buildSummary(
   statements: Statement[],
   semantics?: Array<SemanticQuery | null>,
+  relations?: Relations[],
 ): string {
   if (statements.length === 0) return '还没有可分析的 SQL。';
 
   const semantic = semantics?.[0];
+  const relation = relations?.[0];
   if (semantic) {
-    const body = summarizeSemantic(semantic);
+    let body = summarizeSemantic(semantic);
+    const rootPlaceholder = relation?.filters?.some(
+      (filter) => !filter.parentId && filter.placeholder,
+    );
+    if (rootPlaceholder) {
+      body = body.replace(/只看\s*\d+\s*个条件/, '主查询 WHERE 为占位条件');
+    }
+    if (relation && relation.sources.some((source) => source.parentId)) {
+      const nestedTables = new Set(
+        relation.sources
+          .filter((source) => source.parentId && source.kind === 'table')
+          .map((source) => source.name.toLowerCase()),
+      ).size;
+      const nestedFilters = (relation.filters ?? []).filter(
+        (filter) => filter.parentId && !filter.placeholder,
+      ).length;
+      body = `${body.replace(/。$/, '')}（内部 ${nestedTables} 张表、${
+        relation.joins.length
+      } 个连接${nestedFilters > 0 ? `、${nestedFilters} 个内层条件` : ''}）。`;
+    }
     return statements.length === 1
       ? body
       : `共 ${statements.length} 条语句。第一条：${body}`;
@@ -656,7 +693,7 @@ export function analyzeSql(
   );
   const metrics = mergeMetrics(statementMetrics);
   const summaries = statements.map((statement, index) =>
-    buildSummary([statement], [semanticModels[index] ?? null]),
+    buildSummary([statement], [semanticModels[index] ?? null], [relations[index]!]),
   );
   const summary = summaries[0] ?? '还没有可分析的 SQL。';
 

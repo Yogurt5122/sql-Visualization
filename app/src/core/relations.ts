@@ -395,14 +395,17 @@ export function buildMetrics(
   ).size;
   const semanticTables = new Set<string>();
   if (semantic) collectSemanticTables(semantic, semanticTables);
-  const tables =
-    semanticTables.size > 0
+  const relationTables = new Set(
+    relations.sources
+      .filter((source) => source.kind === 'table')
+      .map((source) => source.name.toLowerCase()),
+  );
+  const hasNestedSource = relations.sources.some((source) => source.parentId);
+  const tables = hasNestedSource
+    ? relationTables.size
+    : semanticTables.size > 0
       ? semanticTables.size
-      : new Set(
-          relations.sources
-            .filter((source) => source.kind === 'table')
-            .map((source) => source.name.toLowerCase()),
-        ).size;
+      : relationTables.size;
   const unions = (text.match(/\b(UNION|INTERSECT|EXCEPT|MINUS)\b/gi) ?? []).length;
   const cases = (text.match(/\bCASE\b/gi) ?? []).length;
   const windows = (text.match(/\bOVER\s*\(/gi) ?? []).length;
