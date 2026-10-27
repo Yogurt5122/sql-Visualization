@@ -54,3 +54,31 @@ export function collectSourceFields(relations: Relations): Map<string, string[]>
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 }
+
+/** 输出字段 + JOIN 条件里实际引用到的字段。 */
+export function collectRelationFields(relations: Relations): Map<string, string[]> {
+  const result = new Map(
+    [...collectSourceFields(relations).entries()].map(([table, fields]) => [
+      table,
+      [...fields],
+    ]),
+  );
+  const aliasMap = new Map<string, string>();
+  for (const source of relations.sources) {
+    aliasMap.set(source.name.toLowerCase(), source.name);
+    if (source.alias) aliasMap.set(source.alias.toLowerCase(), source.name);
+  }
+
+  for (const join of relations.joins) {
+    if (!join.condition) continue;
+    for (const match of join.condition.matchAll(/\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b/g)) {
+      const table = aliasMap.get(match[1]!.toLowerCase());
+      if (!table) continue;
+      const fields = new Set(result.get(table) ?? []);
+      fields.add(match[2]!);
+      result.set(table, [...fields].sort());
+    }
+  }
+
+  return result;
+}

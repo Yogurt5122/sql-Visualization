@@ -656,6 +656,7 @@ export default function App() {
               relations={analysis.relations}
               statementIndex={statementIndex}
               semantic={analysis.semantic[statementIndex] ?? null}
+              statement={analysis.statements[statementIndex]}
               onSelectLine={handleSelectLine}
               highlightTable={highlightTable}
               highlightField={highlightField}
@@ -712,7 +713,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.6.4
+          左侧色条对应子句 · 点击行可定位 · v0.6.5
         </span>
       </footer>
     </div>

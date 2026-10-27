@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Relations } from '../src/core/types';
 import {
+  collectRelationFields,
   collectSourceFields,
   sourceColor,
   sourceTable,
@@ -58,5 +59,28 @@ describe('可视化辅助', () => {
       'amount',
       'user_id',
     ]);
+  });
+
+  it('把 JOIN 条件里的关联字段也归到对应表', () => {
+    const relations = {
+      sources: [
+        { id: 's1', name: 't_demo_order', alias: 'o', kind: 'table', line: 1 },
+        { id: 's2', name: 't_demo_user_dim', alias: 'u', kind: 'table', line: 2 },
+      ],
+      joins: [
+        {
+          id: 'j1',
+          from: 's1',
+          to: 's2',
+          type: 'left',
+          condition: 'o.user_id = u.id',
+          line: 2,
+        },
+      ],
+      lineage: [],
+    } satisfies Relations;
+
+    expect(collectRelationFields(relations).get('t_demo_order')).toEqual(['user_id']);
+    expect(collectRelationFields(relations).get('t_demo_user_dim')).toEqual(['id']);
   });
 });

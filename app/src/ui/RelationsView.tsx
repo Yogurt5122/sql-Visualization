@@ -1,18 +1,22 @@
-import { useState } from 'react';
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type {
   JoinType,
   LineageTransform,
   Relations,
+  RelationJoin,
   RelationSource,
   SemanticQuery,
+  Statement,
 } from '../core/types';
-import { collectSourceFields, sourceColor } from './visual';
+import { collectRelationFields, sourceColor } from './visual';
+import { RelationDetailDialog, type RelationDetail } from './RelationDetail';
 
 export interface RelationsViewProps {
   relations: Relations[];
   statementIndex: number;
   semantic: SemanticQuery | null;
+  statement?: Statement;
   onSelectLine: (line: number) => void;
   highlightTable?: string;
   highlightField?: string;
@@ -51,17 +55,38 @@ function sourceKindLabel(source: RelationSource): string {
 
 function RelationGraph({
   relations,
-  onSelectLine,
+  onSelectSource,
+  onSelectEdge,
   highlightTable,
   highlightField,
   onHighlightTable,
 }: {
   relations: Relations;
-  onSelectLine: (line: number) => void;
+  onSelectSource: (source: RelationSource) => void;
+  onSelectEdge: (edge: RelationJoin, dependency: boolean) => void;
   highlightTable?: string;
   highlightField?: string;
   onHighlightTable?: (table: string | null) => void;
 }) {
+  const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({});
+  const [dragging, setDragging] = useState<string | null>(null);
+  const dragRef = useRef<{
+    id: string;
+    offsetX: number;
+    offsetY: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClick = useRef<string | null>(null);
+
+  useEffect(() => {
+    setOverrides({});
+    setDragging(null);
+    dragRef.current = null;
+    suppressClick.current = null;
+  }, [relations]);
+
   const { sources, joins, dependencies = [] } = relations;
   if (sources.length === 0) {
     return <div className="relations-empty">没有识别到表或数据源。</div>;
@@ -70,24 +95,7 @@ function RelationGraph({
     ...joins.map((join) => ({ edge: join, dependency: false })),
     ...dependencies.map((dependency) => ({ edge: dependency, dependency: true })),
   ];
-  const fieldsBySource = collectSourceFields(relations);
-  const aliasMap = new Map<string, string>();
-  for (const source of sources) {
-    aliasMap.set(source.name.toLowerCase(), source.name);
-    if (source.alias) aliasMap.set(source.alias.toLowerCase(), source.name);
-  }
-  const addField = (table: string, column: string) => {
-    const fields = new Set(fieldsBySource.get(table) ?? []);
-    fields.add(column);
-    fieldsBySource.set(table, [...fields].sort());
-  };
-  for (const join of joins) {
-    if (!join.condition) continue;
-    for (const match of join.condition.matchAll(/\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b/g)) {
-      const table = aliasMap.get(match[1]!.toLowerCase());
-      if (table) addField(table, match[2]!);
-    }
-  }
+  const fieldsBySource = collectRelationFields(relations);
   const sourceName = (id: string) => sources.find((source) => source.id === id)?.name ?? id;
 
   const main = sources[0]!;
@@ -105,6 +113,62 @@ function RelationGraph({
       y: 16 + index * 110,
     });
   });
+  for (const [id, point] of Object.entries(overrides)) {
+    if (positions.has(id)) positions.set(id, point);
+  }
+
+  const pointerToSvg = (event: ReactPointerEvent<SVGGElement>) => {
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * width,
+      y: ((event.clientY - rect.top) / rect.height) * height,
+    };
+  };
+
+  const startDrag = (event: ReactPointerEvent<SVGGElement>, source: RelationSource) => {
+    if (event.button !== 0) return;
+    const point = pointerToSvg(event);
+    const origin = positions.get(source.id);
+    if (!point || !origin) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      id: source.id,
+      offsetX: point.x - origin.x,
+      offsetY: point.y - origin.y,
+      startX: point.x,
+      startY: point.y,
+      moved: false,
+    };
+    setDragging(source.id);
+  };
+
+  const moveDrag = (event: ReactPointerEvent<SVGGElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const point = pointerToSvg(event);
+    if (!point) return;
+    if (Math.abs(point.x - drag.startX) + Math.abs(point.y - drag.startY) > 3) {
+      drag.moved = true;
+    }
+    const x = Math.min(Math.max(0, point.x - drag.offsetX), width - nodeWidth);
+    const y = Math.min(Math.max(0, point.y - drag.offsetY), height - nodeHeight);
+    setOverrides((current) => ({ ...current, [drag.id]: { x, y } }));
+  };
+
+  const endDrag = (event: ReactPointerEvent<SVGGElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (drag.moved) suppressClick.current = drag.id;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragRef.current = null;
+    setDragging(null);
+  };
 
   return (
     <div className="relation-graph-wrap">
@@ -144,11 +208,11 @@ function RelationGraph({
               className={`rel-edge rel-edge-${join.type}${
                 dependency ? ' rel-edge-dependency' : ''
               }${highlightTable && related ? ' is-highlighted' : ''}${dimmed ? ' is-dimmed' : ''}`}
-              onClick={() => onSelectLine(join.line)}
+              onClick={() => onSelectEdge(join, dependency)}
               role="button"
               tabIndex={0}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') onSelectLine(join.line);
+                if (event.key === 'Enter') onSelectEdge(join, dependency);
               }}
             >
               <path className="rel-edge-hit" d={path} />
@@ -188,17 +252,25 @@ function RelationGraph({
               key={source.id}
               className={`rel-node rel-node-${source.kind}${
                 isHighlighted ? ' is-highlighted' : ''
-              }${dimmed ? ' is-dimmed' : ''}`}
+              }${dimmed ? ' is-dimmed' : ''}${dragging === source.id ? ' is-dragging' : ''}`}
               style={{ '--node-color': sourceColor(source.name) } as CSSProperties}
               transform={`translate(${position.x}, ${position.y})`}
+              onPointerDown={(event) => startDrag(event, source)}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
               onClick={() => {
+                if (suppressClick.current === source.id) {
+                  suppressClick.current = null;
+                  return;
+                }
                 onHighlightTable?.(source.name);
-                onSelectLine(source.line);
+                onSelectSource(source);
               }}
               role="button"
               tabIndex={0}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') onSelectLine(source.line);
+                if (event.key === 'Enter') onSelectSource(source);
               }}
             >
               <rect width={nodeWidth} height={nodeHeight} rx={8} />
@@ -490,12 +562,18 @@ export function RelationsView({
   relations,
   statementIndex,
   semantic,
+  statement,
   onSelectLine,
   highlightTable,
   highlightField,
   onHighlightTable,
 }: RelationsViewProps) {
   const [tab, setTab] = useState<'graph' | 'lineage' | 'blocks'>('graph');
+  const [detail, setDetail] = useState<RelationDetail | null>(null);
+
+  useEffect(() => {
+    setDetail(null);
+  }, [relations, statementIndex]);
 
   if (relations.length === 0) return null;
   const current = relations[statementIndex] ?? relations[0]!;
@@ -548,7 +626,8 @@ export function RelationsView({
       {tab === 'graph' ? (
         <RelationGraph
           relations={current}
-          onSelectLine={onSelectLine}
+          onSelectSource={(source) => setDetail({ kind: 'source', source })}
+          onSelectEdge={(edge, dependency) => setDetail({ kind: 'edge', edge, dependency })}
           highlightTable={highlightTable}
           highlightField={highlightField}
           onHighlightTable={onHighlightTable}
@@ -557,6 +636,19 @@ export function RelationsView({
         <LineageTable relations={current} onSelectLine={onSelectLine} />
       ) : semantic ? (
         <QueryBlockList semantic={semantic} onSelectLine={onSelectLine} />
+      ) : null}
+
+      {detail ? (
+        <RelationDetailDialog
+          detail={detail}
+          relations={current}
+          statement={statement}
+          onClose={() => setDetail(null)}
+          onLocate={(line) => {
+            setDetail(null);
+            onSelectLine(line);
+          }}
+        />
       ) : null}
     </section>
   );
