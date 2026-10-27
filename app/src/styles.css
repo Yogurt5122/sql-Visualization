@@ -384,6 +384,7 @@ button {
   font-size: 15.5px;
   line-height: 1.75;
   color: #0b1220;
+  white-space: pre-line;
 }
 
 .summary-note {
@@ -4089,4 +4090,53 @@ button {
 
 .beat-header {
   z-index: 12;
+}
+
+.beat-overlay {
+  background: #000;
+}
+
+.beat-overlay::before {
+  display: none;
+}
+
+.beat-stage-wrap {
+  background: #000;
+  border-color: #1f1f1f;
+}
+
+/* ---------- 0.7.2 CTE 描述 ---------- */
+.tree-label.has-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.tree-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-detail {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structure-detail-description {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.7;
 }

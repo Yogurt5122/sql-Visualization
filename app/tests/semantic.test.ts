@@ -386,4 +386,36 @@ FROM (
     expect(analysis.metrics.joins).toBe(7);
     expect(relation.filters?.some((filter) => filter.placeholder)).toBe(true);
   });
+
+  it('CTE 摘要会说明每个 CTE 做了什么', () => {
+    const analysis = analyzeSql(
+      `WITH base AS (
+         SELECT user_id, amount
+         FROM t_demo_order
+         WHERE status = 'PAID'
+       ),
+       agg AS (
+         SELECT user_id, SUM(amount) AS total
+         FROM base
+         GROUP BY user_id
+       ),
+       ranked AS (
+         SELECT user_id, total,
+                LAG(total) OVER (PARTITION BY user_id ORDER BY total) AS prev_total
+         FROM agg
+       )
+       SELECT * FROM ranked`,
+      'mysql',
+    );
+
+    const ctes = analysis.semantic[0]!.ctes;
+    expect(ctes.map((cte) => cte.name)).toEqual(['base', 'agg', 'ranked']);
+    expect(ctes[0]!.description).toContain('从 t_demo_order 取数');
+    expect(ctes[0]!.description).toContain('过滤 1 个条件');
+    expect(ctes[1]!.description).toContain('分组汇总 SUM');
+    expect(ctes[2]!.description).toContain('LAG 窗口计算');
+    expect(analysis.summary).toContain('base ← t_demo_order');
+    expect(analysis.summary).toContain('分组汇总 SUM');
+    expect(analysis.summary).toContain('LAG 窗口计算');
+  });
 });

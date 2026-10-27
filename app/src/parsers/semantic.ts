@@ -1109,7 +1109,12 @@ export function buildSemanticQuery(
         'with',
         idPrefix,
       );
-      ctes.push({ name: cteName, tables: query.tables, query });
+      ctes.push({
+        name: cteName,
+        tables: query.tables,
+        query,
+        description: describeQueryPurpose(query),
+      });
     });
   }
 
@@ -1323,6 +1328,73 @@ function collectPhysicalTables(
   return [...result];
 }
 
+export function describeQueryPurpose(query: SemanticQuery): string {
+  const parts: string[] = [];
+  const sources = query.sources.map(sourceLabel);
+
+  if (sources.length > 0) parts.push(`从 ${sources.join('、')} 取数`);
+  else {
+    const functions = ['CASE', 'SUBSTR', 'REPLACE', 'TRIM', 'TO_CHAR', 'SYSDATE'].filter(
+      (name) => new RegExp(`\\b${name}\\b`, 'i').test(query.clauses.map((clause) => clause.text).join(' ')),
+    );
+    parts.push(
+      functions.length > 0
+        ? `无表输入，用 ${functions.join('/')} 计算派生字段`
+        : '无表输入',
+    );
+  }
+
+  if (query.whereCount > 0) parts.push(`过滤 ${query.whereCount} 个条件`);
+
+  const clauseText = query.clauses.map((clause) => clause.text).join(' ');
+  const windowNames = [
+    ...new Set(
+      (clauseText.match(/\b(LAG|LEAD|ROW_NUMBER|RANK|DENSE_RANK|NTILE)\s*\(/gi) ?? []).map(
+        (name) => name.replace(/\s*\($/, '').toUpperCase(),
+      ),
+    ),
+  ];
+  const aggregateNames = [
+    ...new Set(
+      (clauseText.match(/\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/gi) ?? []).map((name) =>
+        name.replace(/\s*\($/, '').toUpperCase(),
+      ),
+    ),
+  ];
+
+  if (query.groupBy.length > 0) {
+    parts.push(
+      `按 ${query.groupBy.join('、')} 分组${
+        aggregateNames.length > 0 ? `汇总 ${aggregateNames.join('、')}` : ''
+      }`,
+    );
+  } else if (aggregateNames.length > 0) {
+    parts.push(`汇总 ${aggregateNames.join('、')}`);
+  }
+
+  if (windowNames.length > 0) {
+    parts.push(`用 ${windowNames.join('、')} 窗口计算`);
+  }
+
+  if (query.hasHaving) parts.push('分组后再筛');
+
+  const outputNames = query.outputNames.filter((name) => name !== '*');
+  if (outputNames.length > 0) {
+    const visible = outputNames.slice(0, 4).join('、');
+    const suffix = outputNames.length > 4 ? '…' : '';
+    parts.push(`输出 ${query.outputCount} 列（${visible}${suffix}）`);
+  } else if (query.outputNames.includes('*')) {
+    parts.push('输出全部字段');
+  } else if (query.outputCount > 0) {
+    parts.push(`输出 ${query.outputCount} 列`);
+  }
+
+  if (query.orderBy.length > 0) parts.push(`按 ${query.orderBy.join('、')} 排序`);
+  if (query.limit) parts.push(`取前 ${query.limit} 行`);
+
+  return parts.join('，');
+}
+
 export function summarizeSemantic(query: SemanticQuery): string {
   const parts: string[] = [];
 
@@ -1341,9 +1413,10 @@ export function summarizeSemantic(query: SemanticQuery): string {
       );
       const suffix =
         directRefs.length > 0 ? `（经 ${directRefs.join(' → ')}）` : '';
-      return `${cte.name} ← ${tables.join('/') || '子查询'}${suffix}`;
+      const purpose = cte.description ? `：${cte.description}` : '';
+      return `${cte.name} ← ${tables.join('/') || '子查询'}${suffix}${purpose}`;
     });
-    parts.push(`先定义 ${query.ctes.length} 个 CTE（${list.join('、')}）`);
+    parts.push(`先定义 ${query.ctes.length} 个 CTE：\n${list.join('\n')}`);
   }
 
   if (query.branches.length > 0) {

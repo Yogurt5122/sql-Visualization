@@ -713,6 +713,7 @@ export default function App() {
       {structureDetail ? (
         <StructureDetail
           node={structureDetail.node}
+          description={structureDetail.node.detail}
           explanations={structureDetail.explanations}
           snippet={structureDetail.snippet}
           onClose={() => setStructureDetail(null)}
@@ -730,7 +731,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.7.0
+          左侧色条对应子句 · 点击行可定位 · v0.7.2
         </span>
       </footer>
     </div>

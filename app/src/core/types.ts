@@ -192,6 +192,7 @@ export interface SemanticCte {
   name: string;
   tables: string[];
   query: SemanticQuery;
+  description: string;
 }
 
 export interface SemanticJoinKey {

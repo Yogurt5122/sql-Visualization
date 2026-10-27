@@ -4,6 +4,7 @@ import type { StructureNode } from '../core/structure';
 
 export interface StructureDetailProps {
   node: StructureNode;
+  description?: string;
   snippet: string;
   explanations: Explanation[];
   onClose: () => void;
@@ -12,6 +13,7 @@ export interface StructureDetailProps {
 
 export function StructureDetail({
   node,
+  description,
   snippet,
   explanations,
   onClose,
@@ -58,6 +60,13 @@ export function StructureDetail({
         </header>
 
         <div className="structure-detail-body">
+          {description ? (
+            <div className="structure-detail-block">
+              <h3>它在做什么</h3>
+              <p className="structure-detail-description">{description}</p>
+            </div>
+          ) : null}
+
           {explanations.length > 0 ? (
             <div className="structure-detail-block">
               <h3>这一段在做什么</h3>

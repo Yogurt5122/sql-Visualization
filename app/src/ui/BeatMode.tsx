@@ -28,6 +28,7 @@ export interface BeatModeProps {
 }
 
 const PARTICLE_COLORS = ['#fbbf24', '#fb923c', '#f87171', '#fde68a', '#fff7ed'];
+const STRIKE_INTERVAL_MS = 110;
 
 export function BeatMode({ sql, issues, onClose }: BeatModeProps) {
   const lines = useMemo(() => buildBeatLines(sql), [sql]);
@@ -155,7 +156,7 @@ export function BeatMode({ sql, issues, onClose }: BeatModeProps) {
   const strike = (clientX: number, clientY: number) => {
     if (koRef.current) return;
     const now = performance.now();
-    if (now - lastStrikeRef.current < 32) return;
+    if (now - lastStrikeRef.current < STRIKE_INTERVAL_MS) return;
     lastStrikeRef.current = now;
 
     const wrap = wrapRef.current;

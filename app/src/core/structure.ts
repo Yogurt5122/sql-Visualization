@@ -12,6 +12,7 @@ export interface StructureNode {
   endLine: number;
   searchText: string;
   hasTable: boolean;
+  detail?: string;
   children: StructureNode[];
 }
 
@@ -244,6 +245,7 @@ function buildCtes(
       endLine: lineAt(clause.span.startLine, clause.text, close + 1),
       searchText: `${name} ${text}`,
       hasTable: textHasRef(text, refs),
+      detail: inner?.description,
       children: inner ? semanticClauseNodes(inner.query) : [],
     });
 

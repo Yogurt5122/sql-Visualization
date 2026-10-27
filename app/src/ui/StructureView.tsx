@@ -68,11 +68,12 @@ function TreeRow({
 
         <button
           type="button"
-          className="tree-label"
+          className={`tree-label${node.detail ? ' has-detail' : ''}`}
           onClick={() => onExplain(node)}
-          title={`${node.label} · 查看解释`}
+          title={`${node.label}${node.detail ? ` · ${node.detail}` : ' · 查看解释'}`}
         >
-          {node.label}
+          <span className="tree-label-text">{node.label}</span>
+          {node.detail ? <span className="tree-detail">{node.detail}</span> : null}
         </button>
 
         <span className="tree-lines">
