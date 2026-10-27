@@ -1,6 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { StructureNode } from '../core/structure';
 import { filterStructure, findActiveNode } from '../core/structure';
+
+function nodeIds(nodes: StructureNode[], predicate: (node: StructureNode) => boolean): string[] {
+  return nodes.flatMap((node) => [
+    ...(predicate(node) ? [node.id] : []),
+    ...nodeIds(node.children, predicate),
+  ]);
+}
+
+function defaultCollapsed(nodes: StructureNode[]): Set<string> {
+  return new Set(
+    nodeIds(
+      nodes,
+      (node) => node.kind === 'query' || node.kind === 'subquery' || node.kind === 'cte',
+    ),
+  );
+}
 
 export interface StructureViewProps {
   roots: StructureNode[];
@@ -90,7 +106,11 @@ export function StructureView({ roots, activeLine, onExplain }: StructureViewPro
   const [open, setOpen] = useState(true);
   const [query, setQuery] = useState('');
   const [onlyTables, setOnlyTables] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => defaultCollapsed(roots));
+
+  useEffect(() => {
+    setCollapsed(defaultCollapsed(roots));
+  }, [roots]);
 
   const filtered = useMemo(
     () => filterStructure(roots, query, onlyTables),
@@ -107,6 +127,10 @@ export function StructureView({ roots, activeLine, onExplain }: StructureViewPro
       return next;
     });
   };
+
+  const expandAll = () => setCollapsed(new Set());
+  const collapseAll = () =>
+    setCollapsed(new Set(nodeIds(roots, (node) => node.children.length > 0)));
 
   return (
     <section className="structure-section" aria-label="结构">
@@ -144,6 +168,14 @@ export function StructureView({ roots, activeLine, onExplain }: StructureViewPro
               />
               只看含表
             </label>
+            <div className="structure-actions">
+              <button type="button" onClick={expandAll}>
+                展开
+              </button>
+              <button type="button" onClick={collapseAll}>
+                收起
+              </button>
+            </div>
           </div>
 
           <div className="structure-tree" role="tree" aria-label="SQL 结构树">

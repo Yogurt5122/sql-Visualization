@@ -3,17 +3,6 @@ import type { CSSProperties } from 'react';
 import type { Relations } from '../core/types';
 import { sourceColor, sourceTable, sourceTables } from './visual';
 
-const TRANSFORM_LABEL: Record<string, string> = {
-  direct: '直接引用',
-  aggregate: '聚合',
-  window: '窗口',
-  case: '条件',
-  cast: '类型转换',
-  function: '函数',
-  literal: '常量',
-  unknown: '未知',
-};
-
 export interface SelectMapProps {
   relations?: Relations;
   highlightTable?: string;
@@ -94,7 +83,7 @@ export function SelectMap({
               </div>
 
               {showCards ? (
-                <div className="select-map-grid">
+                <div className="select-map-fields">
                   {group.rows.map((row) => {
                     const unknown = row.output === '*' || row.output.endsWith('.*');
                     const isActive =
@@ -105,24 +94,17 @@ export function SelectMap({
                       <button
                         key={row.id}
                         type="button"
-                        className={`select-map-card${unknown ? ' is-unknown' : ''}${
+                        className={`select-map-field${unknown ? ' is-unknown' : ''}${
                           isActive ? ' is-active' : ''
                         }`}
                         onClick={() => select(group.table, row.source, row.line)}
                         title={`${sourceTables(row.source).join('、')} · 定位到第 ${row.line} 行`}
                       >
-                        <span className="select-map-output">{row.output}</span>
-                        <span className="select-map-flow" aria-hidden="true">
-                          <i />
-                          <span>←</span>
-                        </span>
+                        <code className="select-map-output">{row.output}</code>
                         <span className="select-map-source" title={row.source}>
                           {row.source}
                         </span>
-                        <span className="select-map-meta">
-                          <span className="select-map-table">{group.table}</span>
-                          <span>{row.type ?? TRANSFORM_LABEL[row.transform] ?? row.transform}</span>
-                        </span>
+                        {unknown ? <em>具体列未知</em> : null}
                       </button>
                     );
                   })}

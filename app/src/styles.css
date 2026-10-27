@@ -3325,3 +3325,82 @@ button {
   font-size: 9px;
   font-style: normal;
 }
+
+/* ---------- 0.6.4 紧凑字段行 ---------- */
+.select-map-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 5px;
+  max-height: 220px;
+  margin-top: 7px;
+  overflow: auto;
+}
+
+.select-map-field {
+  min-width: 0;
+  padding: 5px 7px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--field-color);
+  border-radius: 5px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.select-map-field:hover,
+.select-map-field.is-active {
+  border-color: var(--field-color);
+  background: color-mix(in srgb, var(--field-color) 6%, var(--panel));
+}
+
+.select-map-field .select-map-output {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-map-field .select-map-source {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-map-field em {
+  display: block;
+  margin-top: 2px;
+  color: var(--warning-ink);
+  font-size: 9px;
+  font-style: normal;
+}
+
+/* ---------- 0.6.4 结构树默认收起 ---------- */
+.structure-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.structure-actions button {
+  padding: 2px 6px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.structure-actions button:hover {
+  color: var(--accent-ink);
+  border-color: var(--accent-line);
+}
