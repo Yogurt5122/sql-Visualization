@@ -16,6 +16,7 @@ import { FlowDetail } from './ui/FlowDetail';
 import { SelectMap } from './ui/SelectMap';
 import { RiskDialog } from './ui/RiskDialog';
 import { StructureDetail } from './ui/StructureDetail';
+import { BeatMode } from './ui/BeatMode';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -125,6 +126,7 @@ export default function App() {
   const [highlightTable, setHighlightTable] = useState<string>();
   const [highlightField, setHighlightField] = useState<string>();
   const [riskOpen, setRiskOpen] = useState(false);
+  const [beatOpen, setBeatOpen] = useState(false);
   const [structureDetail, setStructureDetail] = useState<{
     node: StructureNode;
     explanations: Explanation[];
@@ -301,6 +303,7 @@ export default function App() {
     setHighlightField(undefined);
     setRiskOpen(false);
     setStructureDetail(null);
+    setBeatOpen(false);
   }, [sql]);
 
   useEffect(() => {
@@ -356,6 +359,16 @@ export default function App() {
               <option value="dark">暗色</option>
             </select>
           </label>
+
+          <button
+            type="button"
+            className="beat-entry"
+            onClick={() => setBeatOpen(true)}
+            disabled={!sql.trim()}
+            title="只读沙袋，不会修改 SQL"
+          >
+            暴打 SQL
+          </button>
 
           <span className="local-badge" title="所有分析都在当前浏览器内完成">
             <span className="local-dot" aria-hidden="true" />
@@ -710,10 +723,14 @@ export default function App() {
         />
       ) : null}
 
+      {beatOpen ? (
+        <BeatMode sql={sql} issues={analysis.issues} onClose={() => setBeatOpen(false)} />
+      ) : null}
+
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.6.5
+          左侧色条对应子句 · 点击行可定位 · v0.7.0
         </span>
       </footer>
     </div>

@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.6.5**：数据关系图节点可拖拽、连线跟随；表和连线都能下穿查看字段、条件和 SQL。
+> 当前 **0.7.0**：新增「暴打 SQL」街机沙袋模式；SQL 只读，词块会悬挂、掉落并最终 KO。
 
 ---
 
@@ -32,6 +32,7 @@
 
 | 版本 | 更新了啥 |
 | --- | --- |
+| 0.7.0 | 暴打 SQL 模式：只读沙袋、点击/拖动出拳、粒子/连击/欠打值、词块悬挂掉落、KO 欠打理由 |
 | 0.6.5 | 关系图节点可拖拽、连线实时跟随；表/连线下穿展示字段、关联条件、过滤条件和 SQL |
 | 0.6.4 | 字段地图小结果压缩为紧凑字段行；结构树默认收起查询块子句，增加一键展开/收起 |
 | 0.6.3 | 指标合并；字段地图分组；预输出横向双行；结构前移并支持下穿解释；风险收成弹窗按钮；SQLArk 同类字体栈 |
@@ -95,6 +96,7 @@
 | 预输出 | 横向双行：第一行字段名，第二行来源；支持横向滚动和复制字段名 |
 | SQL 结构 | 位于字段地图上方；点击节点打开解释弹窗，可定位原文 |
 | 风险体检 | 概览中的小按钮，点击弹窗查看，不再占据大块页面 |
+| 暴打模式 | 顶栏入口；SQL 只读沙袋，点击/拖动出拳，粒子、抖动、连击、欠打值；词块按行数逐步悬挂/掉落，KO 后展示欠打理由，退出后 SQL 不变 |
 | 结构树 | 位于字段地图上方；默认只展开语句和查询块，子句收起；支持一键展开 / 收起、搜索、只看含表；点击节点打开解释弹窗，可定位原文 |
 | 数据关系 | 表关系图节点可拖拽，连线随节点实时重绘；节点和连线都可下穿查看字段、条件与 SQL；节点列出本次用到的字段；派生表内部表和 JOIN 会递归展开；字段血缘 + 查询块；CTE 派生列继续追到底层定义，`SELECT *` 可穿已知 CTE / 派生表展开列；表关系图补 CTE 依赖边；UNION 分支血缘合并标注；查询块用 SVG 图 + 列表展示主查询 / CTE / 子查询 / UNION 分支 |
 | 多语句 | 结果区顶部「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 流程 / 解释仍展示全文 |
@@ -107,7 +109,7 @@
 | 隐私自证 | 构建产物扫描：无 `fetch` / XHR / WebSocket / 外链 |
 | 真实语料 | 51 条脱敏 SQL，覆盖四方言、CTE、窗口、多语句、MyBatis、坏 SQL、规则正反例 |
 | 性能基准 | 2000 行单查询中位数约 95.5 ms；`pnpm bench` 可复现 |
-| 测试 | 190 个测试：139 个单元测试 + 51 条真实语料 |
+| 测试 | 193 个测试：142 个单元测试 + 51 条真实语料 |
 
 ### 解析失败时
 
@@ -158,7 +160,7 @@ cd app
 pnpm build:single
 ```
 
-产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.53 MB，gzip 约 0.79 MB。
+产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.54 MB，gzip 约 0.79 MB。
 
 ### 规划中
 
@@ -195,7 +197,7 @@ pnpm dev              # http://localhost:5173
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm dev` | 本地开发 |
-| `pnpm test` | 190 个测试（139 单元 + 51 语料） |
+| `pnpm test` | 193 个测试（142 单元 + 51 语料） |
 | `pnpm bench` | 跑性能基准，输出行数 / 中位数 / 最小 / 最大 |
 | `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
 | `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
@@ -376,7 +378,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 207.4 KB gzip，`format` 按需 74 KB，Worker 解析包约 519.7 KB，CSS 8.8 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 210.2 KB gzip，`format` 按需 74 KB，Worker 解析包约 519.7 KB，CSS 10.4 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 
@@ -417,6 +419,12 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 ![表关系图：字段与连线高亮](assets/preview-relations.png)
 
 ![关系图下穿：表字段、关联条件与 SQL](assets/preview-relation-detail.png)
+
+**暴打模式**：顶栏「暴打 SQL」进入只读街机沙袋，不修改编辑器内容。点击/拖动出拳，累计连击与欠打值；词块按行数计算耐久，约三拳后开始悬挂、掉落，清空欠打值后 KO，并把现有风险列为「它为什么欠打」。
+
+![暴打 SQL：词块悬挂与掉落](assets/preview-beat.png)
+
+![暴打 SQL：KO 与欠打理由](assets/preview-beat-ko.png)
 
 **多语句**：结果区顶部出现「语句 1 / 语句 2」切换；总结、数据关系和指标条跟随当前语句，结构树 / 执行流程仍展示全文。
 
@@ -466,6 +474,8 @@ sql-Visualization/
 ├─ assets/preview-union-flow.png # UNION ALL 合并阶段
 ├─ assets/preview-relations.png # 表关系图字段与连线高亮
 ├─ assets/preview-relation-detail.png # 表节点下穿：字段、关联条件和 SQL
+├─ assets/preview-beat.png # 暴打模式：词块悬挂与掉落
+├─ assets/preview-beat-ko.png # 暴打模式：KO 与欠打理由
 ├─ assets/preview-single.png # 单文件离线版
 ├─ app/
 │  ├─ src/
