@@ -1,5 +1,12 @@
 # 更新记录
 
+## 0.7.3
+
+- 编辑器支持点击 SQL 关键字，在编辑器下方打开语法说明。
+- 覆盖 SELECT / FROM / WHERE / JOIN / GROUP BY / HAVING / ORDER BY / LIMIT / WITH / UNION / CASE / OVER 等常用关键字。
+- 语法面板展示作用、语法、示例、适用方言和相关关键字；支持 Esc 关闭。
+- 不修改 SQL，不影响原有编辑器操作。
+
 ## 0.7.2
 
 - 每个 CTE 生成一句 purpose，说明输入、过滤、分组/聚合、窗口、输出列。

@@ -14,11 +14,13 @@ import {
 import { oneDark } from '@codemirror/theme-one-dark';
 import { scan } from '../core/scanner';
 import { splitStatements } from '../core/splitter';
+import { findKeywordAt } from '../core/syntax';
 
 export interface EditorProps {
   value: string;
   onChange: (value: string) => void;
   onCursorLine: (line: number) => void;
+  onKeywordClick?: (keyword: string) => void;
   scrollTarget: { line: number; nonce: number } | null;
   theme: 'light' | 'dark';
 }
@@ -120,6 +122,7 @@ export function Editor({
   value,
   onChange,
   onCursorLine,
+  onKeywordClick,
   scrollTarget,
   theme,
 }: EditorProps) {
@@ -128,9 +131,16 @@ export function Editor({
   const themeCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onCursorRef = useRef(onCursorLine);
+  const onKeywordRef = useRef(onKeywordClick);
+  const pendingKeywordRef = useRef<{
+    keyword: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   onChangeRef.current = onChange;
   onCursorRef.current = onCursorLine;
+  onKeywordRef.current = onKeywordClick;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -160,6 +170,31 @@ export function Editor({
             if (pos === null) return false;
             const line = view.state.doc.lineAt(pos).number;
             onCursorRef.current(line);
+            pendingKeywordRef.current = null;
+            if (event.button !== 0) return false;
+            const hit = findKeywordAt(view.state.doc.toString(), pos);
+            if (hit) {
+              pendingKeywordRef.current = {
+                keyword: hit.entry.keyword,
+                x: event.clientX,
+                y: event.clientY,
+              };
+            }
+            return false;
+          },
+          mouseup(event, view) {
+            const pending = pendingKeywordRef.current;
+            pendingKeywordRef.current = null;
+            if (!pending) return false;
+            if (
+              Math.abs(event.clientX - pending.x) +
+                Math.abs(event.clientY - pending.y) >
+              4
+            ) {
+              return false;
+            }
+            if (!view.state.selection.main.empty) return false;
+            onKeywordRef.current?.(pending.keyword);
             return false;
           },
         }),

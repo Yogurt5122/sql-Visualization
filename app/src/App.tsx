@@ -17,6 +17,8 @@ import { SelectMap } from './ui/SelectMap';
 import { RiskDialog } from './ui/RiskDialog';
 import { StructureDetail } from './ui/StructureDetail';
 import { BeatMode } from './ui/BeatMode';
+import { SyntaxGuide } from './ui/SyntaxGuide';
+import { SYNTAX_ENTRIES } from './core/syntax';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -127,6 +129,7 @@ export default function App() {
   const [highlightField, setHighlightField] = useState<string>();
   const [riskOpen, setRiskOpen] = useState(false);
   const [beatOpen, setBeatOpen] = useState(false);
+  const [syntaxKeyword, setSyntaxKeyword] = useState<string | null>(null);
   const [structureDetail, setStructureDetail] = useState<{
     node: StructureNode;
     explanations: Explanation[];
@@ -304,6 +307,7 @@ export default function App() {
     setRiskOpen(false);
     setStructureDetail(null);
     setBeatOpen(false);
+    setSyntaxKeyword(null);
   }, [sql]);
 
   useEffect(() => {
@@ -426,9 +430,18 @@ export default function App() {
             value={sql}
             onChange={setSql}
             onCursorLine={setActiveLine}
+            onKeywordClick={setSyntaxKeyword}
             scrollTarget={scrollTarget}
             theme={theme}
           />
+
+          {syntaxKeyword && SYNTAX_ENTRIES[syntaxKeyword] ? (
+            <SyntaxGuide
+              entry={SYNTAX_ENTRIES[syntaxKeyword]}
+              onClose={() => setSyntaxKeyword(null)}
+              onSelectKeyword={setSyntaxKeyword}
+            />
+          ) : null}
 
           <OutputPreview
             relations={analysis.relations[statementIndex]}
@@ -731,7 +744,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.7.2
+          左侧色条对应子句 · 点击行可定位 · v0.7.3
         </span>
       </footer>
     </div>
