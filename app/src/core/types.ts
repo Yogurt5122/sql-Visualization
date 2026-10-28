@@ -225,6 +225,8 @@ export interface SemanticQuery {
   limit?: string;
   outputCount: number;
   outputNames: string[];
+  /** 一句话说明这个查询块在做什么 */
+  description?: string;
   tables: string[];
   clauses: SemanticClause[];
   ctes: SemanticCte[];

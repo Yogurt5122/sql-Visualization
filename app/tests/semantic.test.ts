@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeSql } from '../src/core/explain';
+import { buildStructure } from '../src/core/structure';
 
 const GOLDEN = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -49,9 +50,9 @@ GROUP BY base.id`,
     expect(analysis.parseError).toBeDefined();
   });
 
-  it('DM8 仍走结构模式，但不产生解析错误横幅', () => {
+  it('DM8 通过兼容语法走语义模式，且不产生解析错误横幅', () => {
     const analysis = analyzeSql('SELECT * FROM t_demo_emp WHERE ROWNUM <= 10', 'dm8');
-    expect(analysis.mode).toBe('structural');
+    expect(analysis.mode).toBe('semantic');
     expect(analysis.parseError).toBeUndefined();
   });
 
@@ -417,5 +418,61 @@ FROM (
     expect(analysis.summary).toContain('base ← t_demo_order');
     expect(analysis.summary).toContain('分组汇总 SUM');
     expect(analysis.summary).toContain('LAG 窗口计算');
+  });
+
+  it('DM8 不会直接跳过语义解析，CTE 仍有说明', () => {
+    const analysis = analyzeSql(
+      `WITH param AS (
+         SELECT CASE
+           WHEN LENGTH(REPLACE(TRIM('2026-10'), '-', '')) >= 6
+             THEN SUBSTR(REPLACE(TRIM('2026-10'), '-', ''), 1, 6)
+           ELSE TO_CHAR(SYSDATE, 'YYYYMM')
+         END AS value_4
+         FROM DUAL
+       ),
+       agg AS (
+         SELECT t1.value_1, NVL(SUM(t1.value_3), 0) AS value_5
+         FROM t_demo_1 t1
+         WHERE t1.value_2 <= (SELECT value_4 FROM param)
+         GROUP BY t1.value_1
+       )
+       SELECT a.value_1, LAG(a.value_5) OVER (PARTITION BY a.value_1 ORDER BY a.value_5) AS value_6
+       FROM agg a`,
+      'dm8',
+    );
+
+    expect(analysis.mode).toBe('semantic');
+    expect(analysis.semantic[0]!.ctes).toHaveLength(2);
+    expect(analysis.semantic[0]!.ctes[0]!.description).toContain('无表输入');
+    expect(analysis.semantic[0]!.ctes[1]!.description).toContain('分组汇总');
+  });
+
+  it('子查询也有 purpose，并进入结构树 detail', () => {
+    const analysis = analyzeSql(
+      `SELECT *
+       FROM t_demo_order o
+       WHERE EXISTS (
+         SELECT 1
+         FROM t_demo_refund r
+         WHERE r.order_id = o.order_id
+           AND r.status = 'DONE'
+       )`,
+      'mysql',
+    );
+    const subquery = analysis.semantic[0]!.subqueries[0]!;
+    expect(subquery.description).toContain('从 t_demo_refund');
+    expect(subquery.description).toContain('过滤 2 个条件');
+
+    const tree = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const findSubquery = (nodes: typeof tree.children): typeof tree | undefined => {
+      for (const node of nodes) {
+        if (node.kind === 'subquery') return node as typeof tree;
+        const found = findSubquery(node.children);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    const node = findSubquery(tree.children);
+    expect(node?.detail).toContain('从 t_demo_refund');
   });
 });

@@ -144,6 +144,7 @@ function semanticSubqueryNodes(
       endLine: subquery.endLine,
       searchText: subquery.clauses.map((clause) => clause.text).join(' '),
       hasTable: queryHasTable(subquery),
+      detail: subquery.description,
       children: semanticClauseNodes(subquery),
     }));
 }
@@ -158,6 +159,7 @@ function semanticUnionNodes(query: SemanticQuery): StructureNode[] {
     endLine: branch.endLine,
     searchText: branch.clauses.map((clause) => clause.text).join(' '),
     hasTable: queryHasTable(branch),
+    detail: branch.description,
     children: semanticClauseNodes(branch),
   }));
 }

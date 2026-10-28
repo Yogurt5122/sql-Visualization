@@ -21,6 +21,9 @@ const DATABASE: Partial<Record<ResolvedDialect, string>> = {
   mysql: 'MySQL',
   postgres: 'PostgreSQL',
   tsql: 'TransactSQL',
+  // node-sql-parser 没有单独的 DM8 语法；DM8 的常见查询/CTE 语法
+  // 与 MySQL 分支兼容度最高，先用它做语义回退，失败再走结构模式。
+  dm8: 'MySQL',
 };
 
 export interface SemanticParse {
@@ -1252,7 +1255,7 @@ export function buildSemanticQuery(
     next = next._next;
   }
 
-  return {
+  const result: SemanticQuery = {
     id: idPrefix,
     kind,
     name,
@@ -1294,6 +1297,8 @@ export function buildSemanticQuery(
     subqueries,
     branches,
   };
+  result.description = describeQueryPurpose(result);
+  return result;
 }
 
 function sourceLabel(source: RelationSource): string {
@@ -1339,8 +1344,8 @@ export function describeQueryPurpose(query: SemanticQuery): string {
     );
     parts.push(
       functions.length > 0
-        ? `无表输入，用 ${functions.join('/')} 计算派生字段`
-        : '无表输入',
+        ? `无表输入，用 ${functions.join('/')} 生成派生字段`
+        : '无表输入，生成派生字段',
     );
   }
 
@@ -1368,7 +1373,7 @@ export function describeQueryPurpose(query: SemanticQuery): string {
         aggregateNames.length > 0 ? `汇总 ${aggregateNames.join('、')}` : ''
       }`,
     );
-  } else if (aggregateNames.length > 0) {
+  } else if (aggregateNames.length > 0 && windowNames.length === 0) {
     parts.push(`汇总 ${aggregateNames.join('、')}`);
   }
 
@@ -1397,6 +1402,7 @@ export function describeQueryPurpose(query: SemanticQuery): string {
 
 export function summarizeSemantic(query: SemanticQuery): string {
   const parts: string[] = [];
+  let cteSummary: string | null = null;
 
   if (query.ctes.length > 0) {
     const byName = new Map(
@@ -1416,7 +1422,7 @@ export function summarizeSemantic(query: SemanticQuery): string {
       const purpose = cte.description ? `：${cte.description}` : '';
       return `${cte.name} ← ${tables.join('/') || '子查询'}${suffix}${purpose}`;
     });
-    parts.push(`先定义 ${query.ctes.length} 个 CTE：\n${list.join('\n')}`);
+    cteSummary = `先定义 ${query.ctes.length} 个 CTE：\n${list.join('\n')}`;
   }
 
   if (query.branches.length > 0) {
@@ -1466,5 +1472,7 @@ export function summarizeSemantic(query: SemanticQuery): string {
     parts.push(`取前 ${query.limit} 行`);
   }
 
-  return parts.length > 0 ? `${parts.join('，')}。` : '没有识别出可解释的子句。';
+  const details = parts.length > 0 ? `${parts.join('，')}。` : '';
+  const text = [cteSummary, details].filter(Boolean).join('\n');
+  return text || '没有识别出可解释的子句。';
 }
