@@ -447,6 +447,7 @@ export default function App() {
             relations={analysis.relations[statementIndex]}
             statementIndex={statementIndex}
             statementCount={analysis.statements.length}
+            onSelectLine={handleSelectLine}
           />
 
           <div className="pane-foot">
@@ -744,7 +745,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.7.3
+          左侧色条对应子句 · 点击行可定位 · v0.7.4
         </span>
       </footer>
     </div>

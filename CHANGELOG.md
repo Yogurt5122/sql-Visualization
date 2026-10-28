@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.7.4
+
+- 预输出增加「详情」弹窗：完整展示字段、类型、来源和行号，支持搜索与点击定位。
+- 关键字词典补充 LIKE、BETWEEN、NOT、IS、NULL。
+- 补充 OFFSET、FETCH、ROWNUM 分页方言提示。
+- 补充 CREATE TABLE、ALTER TABLE、DROP TABLE、PRIMARY KEY、FOREIGN KEY。
+- 增加关键字覆盖测试。
+
 ## 0.7.3
 
 - 编辑器支持点击 SQL 关键字，在编辑器下方打开语法说明。

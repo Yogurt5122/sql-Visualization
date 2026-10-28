@@ -30,4 +30,32 @@ describe('关键字语法', () => {
       }
     }
   });
+
+  it('覆盖过滤、分页和 DDL 常用词', () => {
+    for (const keyword of [
+      'LIKE',
+      'BETWEEN',
+      'NOT',
+      'IS',
+      'NULL',
+      'OFFSET',
+      'FETCH',
+      'ROWNUM',
+      'CREATE TABLE',
+      'ALTER TABLE',
+      'DROP TABLE',
+      'PRIMARY KEY',
+      'FOREIGN KEY',
+    ]) {
+      expect(SYNTAX_ENTRIES[keyword], keyword).toBeDefined();
+    }
+  });
+
+  it('点击 NULL 能命中空值判断说明', () => {
+    const sql = 'SELECT a FROM t_demo_order WHERE a IS NULL';
+    const hit = findKeywordAt(sql, sql.indexOf('NULL') + 1);
+
+    expect(hit?.entry.keyword).toBe('NULL');
+    expect(hit?.entry.example).toContain('IS NULL');
+  });
 });
