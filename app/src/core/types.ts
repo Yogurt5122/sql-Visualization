@@ -100,6 +100,8 @@ export interface RelationSource {
   alias?: string;
   kind: RelationSourceKind;
   line: number;
+  /** DML 目标表 / 来源表 */
+  role?: 'target' | 'source';
   /** 所属查询块；用于嵌套子查询分组 */
   queryId?: string;
   /** 外层派生表节点 id */

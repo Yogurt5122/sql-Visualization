@@ -82,6 +82,9 @@ interface AstNode {
   stmt?: { ast?: AstNode } | AstNode;
   columns?: AstNode[];
   column?: string;
+  value?: unknown;
+  values?: AstNode;
+  set?: AstNode[];
   from?: AstNode[];
   name?: string | { value?: string };
   args?: unknown;
@@ -304,6 +307,9 @@ export function buildSemanticRelations(
   }
 
   const root = ast as AstNode;
+  if (root.type === 'insert' || root.type === 'update' || root.type === 'delete') {
+    return buildDmlRelations(sql, root, idPrefix);
+  }
   const sources: RelationSource[] = [];
   const byKey = new Map<string, RelationSource>();
   const joins: RelationJoin[] = [];
@@ -709,6 +715,264 @@ export function buildSemanticRelations(
   }
 
   return { sources, joins, dependencies, filters, lineage };
+}
+
+function buildDmlRelations(
+  sql: string,
+  root: AstNode,
+  idPrefix: string,
+): Relations {
+  const sources: RelationSource[] = [];
+  const byKey = new Map<string, RelationSource>();
+  const joins: RelationJoin[] = [];
+  const dependencies: RelationJoin[] = [];
+  const filters: RelationFilter[] = [];
+  const lineage: LineageRow[] = [];
+  const target = tableItems(root.table)[0];
+
+  const addSource = (
+    name: string,
+    alias: string | undefined,
+    line: number,
+    role: RelationSource['role'],
+  ): RelationSource => {
+    const key = (alias ?? name).toLowerCase();
+    const existing = byKey.get(key);
+    if (existing) {
+      if (role === 'target') existing.role = 'target';
+      return existing;
+    }
+    const source: RelationSource = {
+      id: `${idPrefix}-sem-src-${sources.length + 1}`,
+      name,
+      alias,
+      kind: 'table',
+      line,
+      role,
+    };
+    sources.push(source);
+    byKey.set(key, source);
+    if (!byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), source);
+    return source;
+  };
+
+  const addFilter = (queryAst: AstNode): void => {
+    if (!queryAst.where) return;
+    const raw = textOf(sql, queryAst.where).trim();
+    if (!raw) return;
+    const normalized = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/--.*$/gm, '')
+      .trim();
+    filters.push({
+      id: `${idPrefix}-filter-${filters.length + 1}`,
+      queryId: `${idPrefix}-q0`,
+      depth: 0,
+      text: raw,
+      line: nodeLoc(queryAst.where).line ?? 1,
+      placeholder: /^1\s*=\s*1$/i.test(normalized),
+    });
+  };
+
+  const relate = (
+    from: RelationSource,
+    to: RelationSource,
+    condition: string,
+    line: number,
+  ): void => {
+    dependencies.push({
+      id: `${idPrefix}-sem-dml-${dependencies.length + 1}`,
+      from: from.id,
+      to: to.id,
+      type: 'unknown',
+      condition,
+      line,
+    });
+  };
+
+  const targetSource = target ? addSource(
+    tableNameOf(target) || '目标表',
+    aliasOf(target.as),
+    nodeLoc(target).line ?? nodeLoc(root).line ?? 1,
+    'target',
+  ) : undefined;
+
+  if (root.type === 'insert' && targetSource) {
+    const values = root.values;
+    if (values?.type === 'select') {
+      const sourceRelations = buildSemanticRelations(
+        sql,
+        values,
+        `${idPrefix}-dml-src`,
+      );
+      for (const source of sourceRelations.sources) {
+        source.role = 'source';
+        sources.push(source);
+      }
+      joins.push(...sourceRelations.joins);
+      dependencies.push(...(sourceRelations.dependencies ?? []));
+      filters.push(...(sourceRelations.filters ?? []));
+      const sourceMain = sourceRelations.sources[0];
+      if (sourceMain) {
+        relate(targetSource, sourceMain, '来源表', sourceMain.line);
+      }
+
+      const rawColumns = root.columns as unknown[] | undefined;
+      const targetColumns = (Array.isArray(rawColumns) ? rawColumns : []).filter(
+        (column): column is string => typeof column === 'string',
+      );
+      const count = Math.max(targetColumns.length, sourceRelations.lineage.length);
+      for (let index = 0; index < count; index += 1) {
+        const sourceRow = sourceRelations.lineage[index];
+        const output = targetColumns[index] ?? sourceRow?.output ?? `列 ${index + 1}`;
+        lineage.push({
+          id: `${idPrefix}-sem-lineage-${index + 1}`,
+          output,
+          source: sourceRow?.source ?? '来源字段',
+          via: sourceRow?.via,
+          transform: sourceRow?.transform ?? 'direct',
+          line: sourceRow?.line ?? targetSource.line,
+          confidence: sourceRow?.confidence ?? 'partial',
+        });
+      }
+    } else {
+      const rows = root.values?.values;
+      const firstRow =
+        Array.isArray(rows) && rows[0]?.type === 'expr_list'
+          ? (rows[0].value as AstNode[] | undefined)
+          : undefined;
+      const rawColumns = root.columns as unknown[] | undefined;
+      const targetColumns = (Array.isArray(rawColumns) ? rawColumns : []).filter(
+        (column): column is string => typeof column === 'string',
+      );
+      for (const [index, column] of targetColumns.entries()) {
+        const value = firstRow?.[index];
+        lineage.push({
+          id: `${idPrefix}-sem-lineage-${index + 1}`,
+          output: column,
+          source: value ? '常量或表达式' : '未提供值',
+          transform: value ? (value.type === 'number' || value.type === 'single_quote_string' ? 'literal' : 'unknown') : 'unknown',
+          line: value ? nodeLoc(value).line ?? targetSource.line : targetSource.line,
+          confidence: 'unknown',
+        });
+      }
+    }
+  }
+
+  if (root.type === 'update' && targetSource) {
+    for (const item of tableItems(root.table).slice(1)) {
+      const name = tableNameOf(item);
+      if (!name) continue;
+      const source = addSource(
+        name,
+        aliasOf(item.as),
+        nodeLoc(item).line ?? targetSource.line,
+        'source',
+      );
+      joins.push({
+        id: `${idPrefix}-sem-join-${joins.length + 1}`,
+        from: targetSource.id,
+        to: source.id,
+        type: joinTypeOf(item.join),
+        condition: item.on ? exprText(sql, item.on) || undefined : undefined,
+        line: nodeLoc(item).line ?? targetSource.line,
+      });
+    }
+
+    for (const assignment of (root.set as AstNode[] | undefined) ?? []) {
+      const output = assignment.column ?? '列';
+      const value = assignment.value as AstNode | undefined;
+      const refs = collectRefs(value);
+      const resolved: string[] = [];
+      for (const ref of refs) {
+        if (!ref.column) continue;
+        const source = ref.table
+          ? byKey.get(ref.table.toLowerCase())
+          : sources[0];
+        resolved.push(source ? `${source.name}.${ref.column}` : ref.column);
+      }
+      const isConstant =
+        value?.type === 'number' ||
+        value?.type === 'single_quote_string' ||
+        value?.type === 'double_quote_string' ||
+        value?.type === 'null' ||
+        value?.type === 'bool';
+      lineage.push({
+        id: `${idPrefix}-sem-lineage-${lineage.length + 1}`,
+        output,
+        source: resolved.length > 0 ? [...new Set(resolved)].join(' + ') : isConstant ? '常量或表达式' : exprText(sql, value) || '表达式',
+        transform: isConstant ? 'literal' : transformOf(value),
+        line: nodeLoc(value).line ?? targetSource.line,
+        confidence: resolved.length > 0 ? 'partial' : 'unknown',
+      });
+    }
+    addFilter(root);
+  }
+
+  if (root.type === 'delete') {
+    const items = tableItems(root.from);
+    const targetAlias = targetSource?.alias ?? targetSource?.name.toLowerCase();
+    const fromTarget = items.find((item) => {
+      const alias = aliasOf(item.as);
+      return (
+        (alias && targetAlias && alias.toLowerCase() === targetAlias) ||
+        tableNameOf(item).toLowerCase() === (targetSource?.name ?? '').toLowerCase()
+      );
+    });
+    if (targetSource && fromTarget) {
+      targetSource.name = tableNameOf(fromTarget) || targetSource.name;
+      targetSource.alias = aliasOf(fromTarget.as) ?? targetSource.alias;
+    }
+    let targetSeen = false;
+    for (const item of items) {
+      const name = tableNameOf(item);
+      if (!name) continue;
+      const alias = aliasOf(item.as);
+      const isTarget =
+        Boolean(targetSource) &&
+        (name.toLowerCase() === targetSource!.name.toLowerCase() ||
+          (alias && alias.toLowerCase() === (targetSource!.alias ?? '').toLowerCase()));
+      const source = addSource(
+        name,
+        alias,
+        nodeLoc(item).line ?? targetSource?.line ?? 1,
+        isTarget ? 'target' : 'source',
+      );
+      if (isTarget) targetSeen = true;
+      const previous = sources.filter((candidate) => candidate.id !== source.id).at(-1);
+      if (item.join && previous) {
+        joins.push({
+          id: `${idPrefix}-sem-join-${joins.length + 1}`,
+          from: previous.id,
+          to: source.id,
+          type: joinTypeOf(item.join),
+          condition: item.on ? exprText(sql, item.on) || undefined : undefined,
+          line: nodeLoc(item).line ?? source.line,
+        });
+      }
+    }
+    if (targetSource && !targetSeen) {
+      targetSource.role = 'source';
+    }
+    addFilter(root);
+  }
+
+  return { sources, joins, dependencies, filters, lineage };
+}
+
+function tableItems(value: unknown): AstNode[] {
+  if (Array.isArray(value)) return value as AstNode[];
+  if (value && typeof value === 'object') return [value as AstNode];
+  return [];
+}
+
+function tableNameOf(item: AstNode): string {
+  if (typeof item.table === 'string') return item.table;
+  if (item.table && typeof item.table === 'object') {
+    const nested = item.table as AstNode;
+    if (typeof nested.table === 'string') return nested.table;
+  }
+  return '';
 }
 
 interface ResolvedRef {

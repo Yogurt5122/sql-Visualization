@@ -80,5 +80,15 @@ export function collectRelationFields(relations: Relations): Map<string, string[
     }
   }
 
+  // DML 目标表的字段来自 lineage 的目标列，而不是来源字段。
+  for (const source of relations.sources) {
+    if (source.role !== 'target') continue;
+    const fields = new Set(result.get(source.name) ?? []);
+    for (const row of relations.lineage) {
+      if (row.output && row.output !== '*') fields.add(row.output);
+    }
+    result.set(source.name, [...fields].sort());
+  }
+
   return result;
 }

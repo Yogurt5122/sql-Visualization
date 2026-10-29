@@ -578,9 +578,11 @@ export default function App() {
             </div>
           )}
 
-          {analysis.statements.some((statement) => statement.kind !== 'select') ? (
+          {analysis.statements.some((statement) =>
+            ['insert', 'update', 'delete'].includes(statement.kind),
+          ) ? (
             <div className="dml-note">
-              DML 暂只做结构解释，不生成关系图 / 字段血缘；导出不在 M3。
+              DML 已生成目标表 / 来源表关系和字段血缘；导出不在 M3。
             </div>
           ) : null}
 
@@ -788,7 +790,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.8.0
+          左侧色条对应子句 · 点击行可定位 · v0.8.1
         </span>
       </footer>
     </div>

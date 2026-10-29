@@ -543,6 +543,54 @@ function findClause(statement: Statement, kind: Clause['kind']): Clause | undefi
   return statement.clauses.find((clause) => clause.kind === kind);
 }
 
+function buildDmlSummary(statement: Statement, relation?: Relations): string {
+  const target = relation?.sources.find((source) => source.role === 'target');
+  const sources = (relation?.sources ?? []).filter(
+    (source) => source.id !== target?.id && source.kind === 'table',
+  );
+  const parts: string[] = [];
+
+  if (statement.kind === 'insert') {
+    const columns = (relation?.lineage ?? []).map((row) => row.output);
+    parts.push(
+      columns.length > 0
+        ? `向 ${target?.name ?? '目标表'} 写入 ${columns.length} 列（${columns
+            .slice(0, 4)
+            .join('、')}${columns.length > 4 ? '…' : ''}）`
+        : `向 ${target?.name ?? '目标表'} 写入数据`,
+    );
+    if (sources.length > 0) {
+      parts.push(`来源 ${sources.map((source) => source.name).join('、')}`);
+    }
+  } else if (statement.kind === 'update') {
+    const columns = (relation?.lineage ?? []).map((row) => row.output);
+    parts.push(
+      columns.length > 0
+        ? `更新 ${target?.name ?? '目标表'} 的 ${columns
+            .slice(0, 4)
+            .join('、')}${columns.length > 4 ? '…' : ''}`
+        : `更新 ${target?.name ?? '目标表'}`,
+    );
+    if (sources.length > 0) {
+      parts.push(`关联 ${sources.map((source) => source.name).join('、')}`);
+    }
+  } else if (statement.kind === 'delete') {
+    parts.push(`从 ${target?.name ?? '目标表'} 删除行`);
+    if (sources.length > 0) {
+      parts.push(`关联 ${sources.map((source) => source.name).join('、')}`);
+    }
+  }
+
+  const filterCount = relation?.filters?.length ?? 0;
+  if (filterCount > 0) parts.push(`过滤 ${filterCount} 个条件`);
+  const joinCount = relation?.joins.length ?? 0;
+  if (joinCount > 0) parts.push(`${joinCount} 个连接`);
+
+  return parts.length > 0
+    ? `${parts.join('，')}。`
+    : '这是一条 DML 语句，未识别出目标表。';
+}
+
 function buildSummary(
   statements: Statement[],
   semantics?: Array<SemanticQuery | null>,
@@ -552,6 +600,14 @@ function buildSummary(
 
   const semantic = semantics?.[0];
   const relation = relations?.[0];
+  const first = statements[0]!;
+  if (first.kind === 'insert' || first.kind === 'update' || first.kind === 'delete') {
+    const body = buildDmlSummary(first, relation);
+    return statements.length === 1
+      ? body
+      : `共 ${statements.length} 条语句。第一条：${body}`;
+  }
+
   if (semantic) {
     let body = summarizeSemantic(semantic);
     const rootPlaceholder = relation?.filters?.some(
@@ -578,7 +634,6 @@ function buildSummary(
       : `共 ${statements.length} 条语句。第一条：${body}`;
   }
 
-  const first = statements[0]!;
   const parts: string[] = [];
   const from = findClause(first, 'from');
   const joins = first.clauses.filter((clause) => clause.kind === 'join');

@@ -21,6 +21,7 @@ export function SelectMap({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const rows = relations?.lineage ?? [];
   if (rows.length === 0) return null;
+  const isDml = relations?.sources.some((source) => source.role === 'target') ?? false;
 
   const groups = [...new Set(rows.map((row) => sourceTable(row.source)))].map((table) => ({
     table,
@@ -43,11 +44,11 @@ export function SelectMap({
   };
 
   return (
-    <section className="select-map" aria-label="SELECT 字段来源图">
+    <section className="select-map" aria-label={isDml ? 'DML 字段来源图' : 'SELECT 字段来源图'}>
       <div className="select-map-head">
         <div>
-          <span className="eyebrow">SELECT 字段地图</span>
-          <h2>输出字段与来源</h2>
+          <span className="eyebrow">{isDml ? 'DML 字段地图' : 'SELECT 字段地图'}</span>
+          <h2>{isDml ? '目标字段与来源' : '输出字段与来源'}</h2>
         </div>
         <span className="select-map-summary">
           {hasUnknown ? '全部字段' : `${rows.length} 个字段`} · {groups.length} 个来源

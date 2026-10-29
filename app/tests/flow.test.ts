@@ -138,4 +138,51 @@ describe('buildFlow', () => {
     expect(source.detail).toContain('o.user_id = u.id');
     expect(source.detail).toContain('o.product_id = p.id');
   });
+
+  it('INSERT SELECT 流程是读来源、过滤、写目标', () => {
+    const analysis = analyzeSql(
+      `INSERT INTO t_demo_order (order_id, amount)
+       SELECT id, amount FROM t_demo_refund
+       WHERE status = 'DONE'`,
+      'mysql',
+    );
+    const steps = buildFlow(analysis.statements[0]!, analysis.relations[0]);
+
+    expect(steps.map((step) => step.label)).toEqual([
+      'INSERT / SELECT',
+      'WHERE',
+      'INSERT',
+    ]);
+    expect(steps.at(-1)?.detail).toContain('写入 t_demo_order');
+  });
+
+  it('UPDATE JOIN 流程是读目标与来源、过滤、SET', () => {
+    const analysis = analyzeSql(
+      `UPDATE t_demo_order o
+       JOIN t_demo_user_dim u ON o.user_id = u.id
+       SET o.amount = u.amount
+       WHERE u.status = 1`,
+      'mysql',
+    );
+    const steps = buildFlow(analysis.statements[0]!, analysis.relations[0]);
+
+    expect(steps.map((step) => step.label)).toEqual([
+      'UPDATE / JOIN',
+      'WHERE',
+      'SET',
+    ]);
+    expect(steps.at(-1)?.detail).toContain('amount');
+  });
+
+  it('DELETE JOIN 流程是定位目标、过滤', () => {
+    const analysis = analyzeSql(
+      `DELETE o FROM t_demo_order o
+       JOIN t_demo_user_dim u ON o.user_id = u.id
+       WHERE u.status = 1`,
+      'mysql',
+    );
+    const steps = buildFlow(analysis.statements[0]!, analysis.relations[0]);
+
+    expect(steps.map((step) => step.label)).toEqual(['DELETE / FROM', 'WHERE']);
+  });
 });

@@ -22,6 +22,7 @@ const JOIN_LABEL: Record<JoinType, string> = {
 };
 
 function kindLabel(source: RelationSource): string {
+  if (source.role === 'target') return '目标表';
   if (source.kind === 'cte') return 'CTE';
   if (source.kind === 'subquery') return '子查询';
   return '表';

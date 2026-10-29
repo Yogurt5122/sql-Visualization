@@ -48,6 +48,7 @@ function shorten(text: string, max: number): string {
 }
 
 function sourceKindLabel(source: RelationSource): string {
+  if (source.role === 'target') return '目标表';
   if (source.kind === 'cte') return 'CTE';
   if (source.kind === 'subquery') return '子查询';
   return '表';
@@ -191,7 +192,15 @@ function RelationGraph({
           const label = dependency
             ? join.condition?.startsWith('UNION')
               ? 'UNION'
-              : 'CTE'
+              : join.condition?.startsWith('INSERT')
+                ? 'INSERT'
+                : join.condition?.includes('来源')
+                  ? 'INSERT'
+                  : join.condition?.startsWith('UPDATE')
+                  ? 'UPDATE'
+                  : join.condition?.startsWith('DELETE')
+                    ? 'DELETE'
+                    : 'CTE'
             : JOIN_LABEL[join.type];
           const related =
             !highlightTable ||
@@ -251,6 +260,8 @@ function RelationGraph({
             <g
               key={source.id}
               className={`rel-node rel-node-${source.kind}${
+                source.role === 'target' ? ' rel-node-target' : ''
+              }${
                 isHighlighted ? ' is-highlighted' : ''
               }${dimmed ? ' is-dimmed' : ''}${dragging === source.id ? ' is-dragging' : ''}`}
               style={{ '--node-color': sourceColor(source.name) } as CSSProperties}

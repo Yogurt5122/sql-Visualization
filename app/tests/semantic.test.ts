@@ -475,4 +475,82 @@ FROM (
     const node = findSubquery(tree.children);
     expect(node?.detail).toContain('从 t_demo_refund');
   });
+
+  it('INSERT SELECT 建立目标表、来源表和字段血缘', () => {
+    const analysis = analyzeSql(
+      'INSERT INTO t_demo_order (order_id, amount) SELECT id, amount FROM t_demo_refund',
+      'mysql',
+    );
+    const relations = analysis.relations[0]!;
+
+    expect(relations.sources.map((source) => [source.name, source.role])).toEqual([
+      ['t_demo_order', 'target'],
+      ['t_demo_refund', 'source'],
+    ]);
+    expect(relations.lineage.map((row) => [row.output, row.source])).toEqual([
+      ['order_id', 't_demo_refund.id'],
+      ['amount', 't_demo_refund.amount'],
+    ]);
+    expect(relations.dependencies?.[0]?.condition).toBe('来源表');
+    expect(analysis.summary).toContain('向 t_demo_order 写入 2 列');
+    expect(analysis.summary).toContain('来源 t_demo_refund');
+  });
+
+  it('UPDATE JOIN 建立目标表、来源表、连接和 SET 血缘', () => {
+    const analysis = analyzeSql(
+      `UPDATE t_demo_order o
+       JOIN t_demo_user_dim u ON o.user_id = u.id
+       SET o.amount = u.amount
+       WHERE u.status = 1`,
+      'mysql',
+    );
+    const relations = analysis.relations[0]!;
+
+    expect(relations.sources.map((source) => [source.name, source.role])).toEqual([
+      ['t_demo_order', 'target'],
+      ['t_demo_user_dim', 'source'],
+    ]);
+    expect(relations.joins).toHaveLength(1);
+    expect(relations.filters?.[0]?.text).toContain('u.status');
+    expect(relations.lineage[0]).toMatchObject({
+      output: 'amount',
+      source: 't_demo_user_dim.amount',
+    });
+    expect(analysis.summary).toContain('更新 t_demo_order 的 amount');
+  });
+
+  it('DELETE JOIN 建立目标表、来源表、连接和过滤条件', () => {
+    const analysis = analyzeSql(
+      `DELETE o
+       FROM t_demo_order o
+       JOIN t_demo_user_dim u ON o.user_id = u.id
+       WHERE u.status = 1`,
+      'mysql',
+    );
+    const relations = analysis.relations[0]!;
+
+    expect(relations.sources.map((source) => [source.name, source.role])).toEqual([
+      ['t_demo_order', 'target'],
+      ['t_demo_user_dim', 'source'],
+    ]);
+    expect(relations.joins[0]?.condition).toContain('o.user_id = u.id');
+    expect(relations.filters?.[0]?.text).toContain('u.status');
+    expect(analysis.summary).toContain('从 t_demo_order 删除行');
+  });
+
+  it('INSERT VALUES 把目标列标成常量来源', () => {
+    const analysis = analyzeSql(
+      `INSERT INTO t_demo_order (order_id, amount) VALUES (1, 100)`,
+      'mysql',
+    );
+    const relations = analysis.relations[0]!;
+
+    expect(relations.sources.map((source) => [source.name, source.role])).toEqual([
+      ['t_demo_order', 'target'],
+    ]);
+    expect(relations.lineage.map((row) => row.source)).toEqual([
+      '常量或表达式',
+      '常量或表达式',
+    ]);
+  });
 });

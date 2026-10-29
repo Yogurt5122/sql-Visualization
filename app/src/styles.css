@@ -4573,3 +4573,8 @@ button {
   line-height: 1.6;
   white-space: pre-wrap;
 }
+
+.rel-node-target > rect:first-of-type {
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}

@@ -300,6 +300,112 @@ function splitUnionSegments(statement: Statement): UnionSegments {
   };
 }
 
+function buildDmlFlow(statement: Statement, relations?: Relations): FlowStep[] {
+  const steps: FlowStep[] = [];
+  const find = (kind: Clause['kind']): Clause | undefined =>
+    statement.clauses.find((clause) => clause.kind === kind);
+  const where = find('where');
+  const update = find('update');
+  const insert = find('insert');
+  const del = find('delete');
+  const from = find('from');
+  const select = find('select');
+  const target = relations?.sources.find((source) => source.role === 'target');
+  const sourceTables = (relations?.sources ?? [])
+    .filter((source) => source.id !== target?.id)
+    .map((source) => source.name);
+  const targetColumns = (relations?.lineage ?? []).map((row) => row.output);
+  const targetLabel = target?.name ?? '目标表';
+  const whereStep = where
+    ? makeStep(
+        statement,
+        'where',
+        'WHERE',
+        '过滤',
+        compactSql(stripLeadingKeyword(where.text, 'WHERE'))
+          ? `只处理满足 ${compactSql(stripLeadingKeyword(where.text, 'WHERE'), 50)} 的行`
+          : '只处理满足条件的行',
+        'filter',
+        [where],
+      )
+    : undefined;
+
+  if (statement.kind === 'insert') {
+    if (select && (from || sourceTables.length > 0)) {
+      const detail = sourceTables.length
+        ? `从 ${sourceTables.join('、')} 读取来源数据`
+        : '读取 SELECT 结果';
+      steps.push(
+        makeStep(statement, 'source', 'INSERT / SELECT', '读取来源', detail, 'source', [
+          select,
+          ...(from ? [from] : []),
+        ]),
+      );
+    }
+    if (whereStep) steps.push(whereStep);
+    steps.push(
+      makeStep(
+        statement,
+        'select',
+        'INSERT',
+        '写入目标',
+        `写入 ${targetLabel}${
+          targetColumns.length > 0
+            ? ` · ${targetColumns.length} 列（${targetColumns.slice(0, 4).join('、')}${
+                targetColumns.length > 4 ? '…' : ''
+              }）`
+            : ''
+        }`,
+        'compute',
+        insert ? [insert] : statement.clauses.slice(0, 1),
+      ),
+    );
+  } else if (statement.kind === 'update') {
+    steps.push(
+      makeStep(
+        statement,
+        'source',
+        'UPDATE / JOIN',
+        '读取目标与来源',
+        [targetLabel, ...sourceTables].join('、') +
+          (relations?.joins.length ? ` · ${relations.joins.length} 个连接` : ''),
+        'source',
+        update ? [update] : statement.clauses.slice(0, 1),
+      ),
+    );
+    if (whereStep) steps.push(whereStep);
+    steps.push(
+      makeStep(
+        statement,
+        'select',
+        'SET',
+        '更新字段',
+        targetColumns.length > 0
+          ? `${targetColumns.slice(0, 4).join('、')}${targetColumns.length > 4 ? '…' : ''}`
+          : '更新目标表字段',
+        'compute',
+        update ? [update] : statement.clauses.slice(0, 1),
+      ),
+    );
+  } else if (statement.kind === 'delete') {
+    steps.push(
+      makeStep(
+        statement,
+        'source',
+        'DELETE / FROM',
+        '定位目标',
+        [targetLabel, ...sourceTables].join('、') +
+          (relations?.joins.length ? ` · ${relations.joins.length} 个连接` : ''),
+        'source',
+        del ? [del] : statement.clauses.slice(0, 1),
+      ),
+    );
+    if (whereStep) steps.push(whereStep);
+  }
+
+  return steps;
+}
+
 /**
  * 以数据库的**逻辑求值顺序**生成执行流程，而不是 SQL 的书写顺序。
  *
@@ -309,6 +415,9 @@ export function buildFlow(
   statement: Statement,
   relations?: Relations,
 ): FlowStep[] {
+  if (statement.kind === 'insert' || statement.kind === 'update' || statement.kind === 'delete') {
+    return buildDmlFlow(statement, relations);
+  }
   const { main, branches, unions } = splitUnionSegments(statement);
   const isUnion = unions.length > 0;
   const steps: FlowStep[] = [];
