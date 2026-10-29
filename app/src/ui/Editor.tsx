@@ -21,6 +21,7 @@ export interface EditorProps {
   onChange: (value: string) => void;
   onCursorLine: (line: number) => void;
   onKeywordClick?: (keyword: string) => void;
+  dictionaryEnabled?: boolean;
   scrollTarget: { line: number; nonce: number } | null;
   theme: 'light' | 'dark';
 }
@@ -123,6 +124,7 @@ export function Editor({
   onChange,
   onCursorLine,
   onKeywordClick,
+  dictionaryEnabled = false,
   scrollTarget,
   theme,
 }: EditorProps) {
@@ -132,6 +134,7 @@ export function Editor({
   const onChangeRef = useRef(onChange);
   const onCursorRef = useRef(onCursorLine);
   const onKeywordRef = useRef(onKeywordClick);
+  const dictionaryRef = useRef(dictionaryEnabled);
   const pendingKeywordRef = useRef<{
     keyword: string;
     x: number;
@@ -141,6 +144,7 @@ export function Editor({
   onChangeRef.current = onChange;
   onCursorRef.current = onCursorLine;
   onKeywordRef.current = onKeywordClick;
+  dictionaryRef.current = dictionaryEnabled;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -171,7 +175,7 @@ export function Editor({
             const line = view.state.doc.lineAt(pos).number;
             onCursorRef.current(line);
             pendingKeywordRef.current = null;
-            if (event.button !== 0) return false;
+            if (event.button !== 0 || !dictionaryRef.current) return false;
             const hit = findKeywordAt(view.state.doc.toString(), pos);
             if (hit) {
               pendingKeywordRef.current = {

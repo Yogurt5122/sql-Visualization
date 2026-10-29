@@ -4528,3 +4528,18 @@ button {
     display: none;
   }
 }
+
+.dictionary-toggle.is-active {
+  color: var(--accent-ink);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.dictionary-toggle.is-active::before {
+  content: '●';
+  margin-right: 4px;
+  color: var(--accent);
+  font-size: 8px;
+  vertical-align: 1px;
+}

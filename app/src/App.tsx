@@ -112,6 +112,16 @@ function initialSql(): string {
   return SAMPLE_MYSQL;
 }
 
+const DICTIONARY_KEY = 'sql-xray:syntax-dictionary';
+
+function readDictionaryEnabled(): boolean {
+  try {
+    return window.localStorage.getItem(DICTIONARY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
   const { updateReady, applyUpdate } = usePwa();
   const { mode: themeMode, setMode: setThemeMode, resolved: theme } = useTheme();
@@ -130,6 +140,7 @@ export default function App() {
   const [riskOpen, setRiskOpen] = useState(false);
   const [beatOpen, setBeatOpen] = useState(false);
   const [syntaxKeyword, setSyntaxKeyword] = useState<string | null>(null);
+  const [dictionaryEnabled, setDictionaryEnabled] = useState(readDictionaryEnabled);
   const [structureDetail, setStructureDetail] = useState<{
     node: StructureNode;
     explanations: Explanation[];
@@ -301,6 +312,14 @@ export default function App() {
   }, [formatNotice]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(DICTIONARY_KEY, dictionaryEnabled ? '1' : '0');
+    } catch {
+      // 隐私模式下只保留当前页面状态。
+    }
+  }, [dictionaryEnabled]);
+
+  useEffect(() => {
     setFlowDetail(null);
     setHighlightTable(undefined);
     setHighlightField(undefined);
@@ -406,6 +425,19 @@ export default function App() {
               </button>
               <button
                 type="button"
+                className={`dictionary-toggle${dictionaryEnabled ? ' is-active' : ''}`}
+                aria-pressed={dictionaryEnabled}
+                onClick={() => {
+                  const next = !dictionaryEnabled;
+                  setDictionaryEnabled(next);
+                  if (!next) setSyntaxKeyword(null);
+                }}
+                title="打开/关闭关键字字典"
+              >
+                字典
+              </button>
+              <button
+                type="button"
                 className="format-button"
                 onClick={handleFormat}
                 title="美化 SQL（Shift+Alt+F）"
@@ -431,11 +463,12 @@ export default function App() {
             onChange={setSql}
             onCursorLine={setActiveLine}
             onKeywordClick={setSyntaxKeyword}
+            dictionaryEnabled={dictionaryEnabled}
             scrollTarget={scrollTarget}
             theme={theme}
           />
 
-          {syntaxKeyword && SYNTAX_ENTRIES[syntaxKeyword] ? (
+          {dictionaryEnabled && syntaxKeyword && SYNTAX_ENTRIES[syntaxKeyword] ? (
             <SyntaxGuide
               entry={SYNTAX_ENTRIES[syntaxKeyword]}
               onClose={() => setSyntaxKeyword(null)}
@@ -745,7 +778,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.7.5
+          左侧色条对应子句 · 点击行可定位 · v0.7.6
         </span>
       </footer>
     </div>
