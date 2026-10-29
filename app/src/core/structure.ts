@@ -125,8 +125,8 @@ function queryHasTable(query: SemanticQuery): boolean {
 }
 
 function subqueryLabel(query: SemanticQuery): string {
-  const match = /-sub-(\d+)$/.exec(query.id);
-  return match ? `#${match[1]}` : '子查询';
+  const parts = [...query.id.matchAll(/-sub-(\d+)/g)].map((match) => match[1]);
+  return parts.length > 0 ? `#${parts.join('.')}` : '子查询';
 }
 
 function semanticSubqueryNodes(
@@ -186,28 +186,57 @@ function buildSubqueries(
   refs: string[],
   counter: { count: number },
 ): StructureNode[] {
+  return collectSubqueries(
+    clause.text,
+    clause.span.startLine,
+    0,
+    clause.text.length,
+    refs,
+    counter,
+    clause.id,
+  );
+}
+
+function collectSubqueries(
+  text: string,
+  baseLine: number,
+  rangeStart: number,
+  rangeEnd: number,
+  refs: string[],
+  counter: { count: number },
+  idPrefix: string,
+): StructureNode[] {
   const nodes: StructureNode[] = [];
   const pattern = /\(\s*SELECT\b/gi;
+  pattern.lastIndex = rangeStart;
+
   let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(clause.text))) {
+  while ((match = pattern.exec(text))) {
+    if (match.index >= rangeEnd) break;
     const open = match.index;
-    const close = findClosingParen(clause.text, open);
-    if (close < 0) break;
+    const close = findClosingParen(text, open);
+    if (close < 0 || close > rangeEnd) break;
 
-    const text = clause.text.slice(open, close + 1);
+    const subqueryText = text.slice(open, close + 1);
     counter.count += 1;
-
     nodes.push({
-      id: `${clause.id}-sub-${counter.count}`,
+      id: `${idPrefix}-sub-${counter.count}`,
       kind: 'subquery',
       label: `#${counter.count}`,
       badge: '子查询',
-      startLine: lineAt(clause.span.startLine, clause.text, open),
-      endLine: lineAt(clause.span.startLine, clause.text, close + 1),
-      searchText: text,
-      hasTable: textHasRef(text, refs),
-      children: [],
+      startLine: lineAt(baseLine, text, open),
+      endLine: lineAt(baseLine, text, close + 1),
+      searchText: subqueryText,
+      hasTable: textHasRef(subqueryText, refs),
+      children: collectSubqueries(
+        text,
+        baseLine,
+        open + 1,
+        close,
+        refs,
+        counter,
+        idPrefix,
+      ),
     });
 
     pattern.lastIndex = close + 1;

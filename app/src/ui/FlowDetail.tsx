@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { FlowStep } from '../core/flow';
 import type { Explanation, Issue, Relations } from '../core/types';
+import type { SqlComment } from '../core/comments';
 
 export interface FlowDetailProps {
   step: FlowStep;
@@ -9,6 +10,7 @@ export interface FlowDetailProps {
   relations?: Relations;
   explanations: Explanation[];
   issues: Issue[];
+  comments?: SqlComment[];
   onClose: () => void;
   onLocate: () => void;
 }
@@ -35,6 +37,7 @@ export function FlowDetail({
   relations,
   explanations,
   issues,
+  comments = [],
   onClose,
   onLocate,
 }: FlowDetailProps) {
@@ -100,6 +103,15 @@ export function FlowDetail({
         </header>
 
         <p className="flow-detail-summary">{step.detail}</p>
+
+        {comments.length > 0 ? (
+          <div className="flow-detail-block">
+            <h4>相关注释</h4>
+            <pre className="flow-detail-comments">
+              {comments.map((comment) => comment.raw).join('\n')}
+            </pre>
+          </div>
+        ) : null}
 
         {filters.length > 0 ? (
           <div className="flow-detail-block">

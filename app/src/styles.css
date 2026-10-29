@@ -4543,3 +4543,33 @@ button {
   font-size: 8px;
   vertical-align: 1px;
 }
+
+.structure-detail-comments {
+  margin: 0;
+  padding: 8px 9px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted-soft);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.flow-detail-comments {
+  margin: 0;
+  padding: 8px 9px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted-soft);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

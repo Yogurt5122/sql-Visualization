@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import type { Explanation } from '../core/types';
 import type { StructureNode } from '../core/structure';
+import type { SqlComment } from '../core/comments';
 
 export interface StructureDetailProps {
   node: StructureNode;
   description?: string;
+  comments?: SqlComment[];
   snippet: string;
   explanations: Explanation[];
   onClose: () => void;
@@ -14,6 +16,7 @@ export interface StructureDetailProps {
 export function StructureDetail({
   node,
   description,
+  comments = [],
   snippet,
   explanations,
   onClose,
@@ -85,6 +88,15 @@ export function StructureDetail({
               这个节点暂时没有逐句解释，可以直接看下面的原文。
             </p>
           )}
+
+          {comments.length > 0 ? (
+            <div className="structure-detail-block">
+              <h3>相关注释</h3>
+              <pre className="structure-detail-comments">
+                {comments.map((comment) => comment.raw).join('\n')}
+              </pre>
+            </div>
+          ) : null}
 
           <div className="structure-detail-block">
             <h3>原文</h3>

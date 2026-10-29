@@ -19,6 +19,7 @@ import { StructureDetail } from './ui/StructureDetail';
 import { BeatMode } from './ui/BeatMode';
 import { SyntaxGuide } from './ui/SyntaxGuide';
 import { SYNTAX_ENTRIES } from './core/syntax';
+import { collectSqlComments, commentsForRange, type SqlComment } from './core/comments';
 
 const SAMPLE_MYSQL = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -144,6 +145,7 @@ export default function App() {
   const [structureDetail, setStructureDetail] = useState<{
     node: StructureNode;
     explanations: Explanation[];
+    comments: SqlComment[];
     snippet: string;
   } | null>(null);
   const [scrollTarget, setScrollTarget] = useState<{ line: number; nonce: number } | null>(
@@ -188,6 +190,7 @@ export default function App() {
     (step) => activeLine >= step.startLine && activeLine <= step.endLine,
   );
   const lineCount = sql ? sql.split('\n').length : 0;
+  const sqlComments = useMemo(() => collectSqlComments(sql), [sql]);
   const highRiskCount = analysis.issues.filter((issue) => issue.severity === 'high').length;
 
   const requestScroll = (line: number) => {
@@ -231,6 +234,7 @@ export default function App() {
     setStructureDetail({
       node,
       explanations: related.slice(0, 6),
+      comments: commentsForRange(sqlComments, node.startLine, node.endLine),
       snippet,
     });
   };
@@ -737,6 +741,11 @@ export default function App() {
           relations={analysis.relations[flowDetail.statementIndex]}
           explanations={analysis.explanations}
           issues={analysis.issues}
+          comments={commentsForRange(
+            sqlComments,
+            flowDetail.step.startLine,
+            flowDetail.step.endLine,
+          )}
           onClose={() => setFlowDetail(null)}
           onLocate={() => {
             setActiveLine(flowDetail.step.startLine);
@@ -761,6 +770,7 @@ export default function App() {
         <StructureDetail
           node={structureDetail.node}
           description={structureDetail.node.detail}
+          comments={structureDetail.comments}
           explanations={structureDetail.explanations}
           snippet={structureDetail.snippet}
           onClose={() => setStructureDetail(null)}
@@ -778,7 +788,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.7.6
+          左侧色条对应子句 · 点击行可定位 · v0.8.0
         </span>
       </footer>
     </div>

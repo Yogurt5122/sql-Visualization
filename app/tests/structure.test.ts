@@ -191,4 +191,48 @@ FROM t_demo_order o`;
       'FROM',
     ]);
   });
+
+  it('嵌套子查询使用路径编号', () => {
+    const analysis = analyzeSql(
+      'SELECT * FROM (SELECT * FROM (SELECT id FROM t_demo_order) x) y',
+      'mysql',
+    );
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const subqueries = flatten(root.children).filter(
+      (node) => node.kind === 'subquery',
+    );
+
+    expect(subqueries.map((node) => node.label)).toEqual(['#1', '#1.1']);
+  });
+
+  it('结构模式 fallback 也会递归展开嵌套子查询', () => {
+    const analysis = analyzeSql(
+      'SELECT * FROM (SELECT * FROM (SELECT id FROM t_demo_order) x) y',
+      'mysql',
+    );
+    const root = buildStructure(analysis.statements[0]!);
+    const subqueries = flatten(root.children).filter(
+      (node) => node.kind === 'subquery',
+    );
+
+    expect(subqueries).toHaveLength(2);
+    expect(subqueries[0]?.children.some((node) => node.kind === 'subquery')).toBe(true);
+  });
+
+  it('HAVING 子查询会挂到 HAVING 下', () => {
+    const analysis = analyzeSql(
+      `SELECT user_id, SUM(amount)
+       FROM t_demo_order
+       GROUP BY user_id
+       HAVING SUM(amount) > (SELECT AVG(amount) FROM t_demo_refund)`,
+      'mysql',
+    );
+    const root = buildStructure(analysis.statements[0]!, analysis.semantic[0]!);
+    const having = root.children[0]!.children.find(
+      (child) => child.label === 'HAVING',
+    )!;
+
+    expect(having.children).toHaveLength(1);
+    expect(having.children[0]?.kind).toBe('subquery');
+  });
 });
