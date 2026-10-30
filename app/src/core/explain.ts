@@ -686,6 +686,9 @@ export interface AnalyzeOptions {
   mybatisVariant?: MybatisVariant;
 }
 
+/** 超过这个行数不再走 node-sql-parser，避免 10k 级 AST 解析拖垮交互。 */
+export const LARGE_SQL_LINE_LIMIT = 8000;
+
 export function analyzeSql(
   sql: string,
   selectedDialect: Dialect = 'auto',
@@ -698,7 +701,18 @@ export function analyzeSql(
   const guess = resolveDialect(selectedDialect, cleanSql);
   const { tokens, errors } = scan(cleanSql);
   const statements = splitStatements(cleanSql, tokens);
-  const parsed = parseSemantic(cleanSql, guess.dialect);
+  const sourceLines = cleanSql ? cleanSql.split('\n').length : 0;
+  const hugeSql = sourceLines > LARGE_SQL_LINE_LIMIT;
+  const parsed = (
+    hugeSql
+      ? {
+          ok: false,
+          error: {
+            message: `SQL 约 ${sourceLines} 行，已使用结构模式以保证响应`,
+          },
+        }
+      : parseSemantic(cleanSql, guess.dialect)
+  ) as ReturnType<typeof parseSemantic>;
 
   let relations: Analysis['relations'];
   let semanticModels: Analysis['semantic'] = statements.map(() => null);
@@ -754,13 +768,19 @@ export function analyzeSql(
 
   const warnings = [
     ...preprocess.warnings,
+    ...(hugeSql
+      ? [
+          `SQL 约 ${sourceLines} 行，已使用结构模式以保证响应；语义关系请拆分 SQL 后查看。`,
+        ]
+      : []),
     ...errors.map((error) => `第 ${error.line} 行第 ${error.col} 列：${error.message}`),
   ];
   if (statements.length === 0 && cleanSql.trim()) {
     warnings.push('没有识别到可分析的 SQL 语句。');
   }
 
-  const parseError = !parsed.ok && guess.dialect !== 'dm8' ? parsed.error : undefined;
+  const parseError =
+    !parsed.ok && !hugeSql && guess.dialect !== 'dm8' ? parsed.error : undefined;
 
   return {
     dialect: guess.dialect,

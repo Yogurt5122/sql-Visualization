@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeSql } from '../src/core/explain';
+import { analyzeSql, LARGE_SQL_LINE_LIMIT } from '../src/core/explain';
 
 const GOLDEN = `SELECT o.user_id, COUNT(*) AS cnt
 FROM t_demo_order o
@@ -84,5 +84,22 @@ describe('analyzeSql', () => {
     for (const input of inputs) {
       expect(() => analyzeSql(input)).not.toThrow();
     }
+  });
+
+  it('超过行数阈值时走结构模式并给出提示', () => {
+    const conditions = Array.from(
+      { length: LARGE_SQL_LINE_LIMIT + 1 },
+      () => '  AND t_demo_order.status = 1',
+    ).join('\n');
+    const analysis = analyzeSql(
+      `SELECT id FROM t_demo_order\nWHERE 1 = 1\n${conditions}`,
+      'mysql',
+    );
+
+    expect(analysis.mode).toBe('structural');
+    expect(analysis.parseError).toBeUndefined();
+    expect(analysis.warnings.some((warning) => warning.includes('结构模式'))).toBe(
+      true,
+    );
   });
 });
