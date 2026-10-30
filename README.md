@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.8.2**：PWA 改为网络优先、缓存兜底，修复 iOS 回收缓存后打不开的问题。
+> 当前 **0.9.0**：主包 gzip 预算接入构建门禁，超 300 KB 直接失败。
 
 ---
 
@@ -32,6 +32,7 @@
 
 | 版本 | 更新了啥 |
 | --- | --- |
+| 0.9.0 | 主包 gzip 预算接入构建 / CI，超过 300 KB 直接失败 |
 | 0.8.2 | PWA 导航网络优先 / 缓存兜底；静态资源未缓存回网络；修复 iOS 旧 SW 503 打不开 |
 | 0.8.1 | DML 语义关系：INSERT / UPDATE / DELETE 目标表与来源；INSERT SELECT / SET 字段血缘；DML 专属摘要、流程和字段地图 |
 | 0.8.0 | 嵌套子查询 #1/#1.1；结构 fallback 递归展开；注释挂到节点/流程解释；补 HAVING 子查询测试 |
@@ -214,6 +215,7 @@ pnpm dev              # http://localhost:5173
 | `pnpm build` | 类型检查 + 生产构建 + 生成 Service Worker |
 | `pnpm build:single` | 构建单文件 `dist-single/sql-xray.html`，并检查无外部资源 |
 | `pnpm check:privacy` | 扫描构建产物：应用无网络 API、无外部资源（含单文件）；Service Worker 仅允许同源静态 `fetch` |
+| `pnpm check:bundle` | 检查主入口 JS gzip 是否超过 300 KB |
 | `pnpm check:fixtures` | 扫描 SQL 语料表名必须为 `t_demo_*`，并阻断旧业务前缀 |
 | `pnpm hooks:install` | 安装 pre-commit 钩子，提交前自动跑表名检查 |
 | `pnpm preview` | 预览生产构建 |

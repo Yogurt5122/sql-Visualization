@@ -1,7 +1,7 @@
 {
   "name": "sql-xray",
   "private": true,
-  "version": "0.8.2",
+  "version": "0.9.0",
   "type": "module",
   "description": "把屎山 SQL 讲成人话的纯前端工具",
   "license": "MIT",
@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs && node scripts/check-bundle-budget.mjs",
     "build:single": "tsc --noEmit && vite build --config vite.config.single.ts && node scripts/inline-single.mjs && node scripts/check-single.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -19,7 +19,8 @@
     "check:fixtures": "node scripts/check-fixtures.mjs",
     "hooks:install": "git -C .. config core.hooksPath .githooks",
     "bench": "vitest run --config vitest.bench.config.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:bundle": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@codemirror/lang-sql": "^6.8.0",
