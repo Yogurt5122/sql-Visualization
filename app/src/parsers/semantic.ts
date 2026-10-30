@@ -1175,11 +1175,23 @@ function columnLabel(sql: string, node: AstNode | undefined): string {
 
 function countPredicates(node: AstNode | undefined): number {
   if (!node) return 0;
-  const operator = String(node.operator ?? '').toUpperCase();
-  if (node.type === 'binary_expr' && (operator === 'AND' || operator === 'OR')) {
-    return countPredicates(node.left) + countPredicates(node.right);
+  let count = 0;
+  const stack: AstNode[] = [node];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const operator = String(current.operator ?? '').toUpperCase();
+    if (
+      current.type === 'binary_expr' &&
+      (operator === 'AND' || operator === 'OR') &&
+      current.left &&
+      current.right
+    ) {
+      stack.push(current.left, current.right);
+    } else {
+      count += 1;
+    }
   }
-  return 1;
+  return count;
 }
 
 function collectSelectNodes(
@@ -1187,23 +1199,31 @@ function collectSelectNodes(
   result: AstNode[],
   seen: WeakSet<object>,
 ): void {
-  if (!node || typeof node !== 'object') return;
-  if (Array.isArray(node)) {
-    for (const item of node) collectSelectNodes(item, result, seen);
-    return;
-  }
-  if (seen.has(node)) return;
-  seen.add(node);
+  const stack: unknown[] = [node];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        stack.push(current[index]);
+      }
+      continue;
+    }
+    if (seen.has(current)) continue;
+    seen.add(current);
 
-  const value = node as AstNode;
-  if (value.type === 'select') {
-    result.push(value);
-    return;
-  }
+    const value = current as AstNode;
+    if (value.type === 'select') {
+      result.push(value);
+      continue;
+    }
 
-  for (const [key, child] of Object.entries(value)) {
-    if (key === 'loc' || key === 'as') continue;
-    collectSelectNodes(child, result, seen);
+    const entries = Object.entries(value);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, child] = entries[index]!;
+      if (key === 'loc' || key === 'as') continue;
+      stack.push(child);
+    }
   }
 }
 

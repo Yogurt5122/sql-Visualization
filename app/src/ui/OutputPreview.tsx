@@ -19,6 +19,8 @@ export interface OutputPreviewProps {
   relations?: Relations;
   statementIndex: number;
   statementCount: number;
+  /** 超大结果只渲染前 N 行，完整字段在详情里看 */
+  maxItems?: number;
   onSelectLine?: (line: number) => void;
 }
 
@@ -26,6 +28,7 @@ export function OutputPreview({
   relations,
   statementIndex,
   statementCount,
+  maxItems,
   onSelectLine,
 }: OutputPreviewProps) {
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -33,6 +36,9 @@ export function OutputPreview({
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailQuery, setDetailQuery] = useState('');
   const rows = relations?.lineage ?? [];
+  const visibleRows =
+    maxItems && rows.length > maxItems ? rows.slice(0, maxItems) : rows;
+  const hiddenCount = rows.length - visibleRows.length;
 
   useEffect(() => {
     if (!detailOpen) return undefined;
@@ -119,7 +125,7 @@ export function OutputPreview({
 
       {!collapsed ? (
         <div className="output-preview-flow" role="list" aria-label="字段与来源">
-          {rows.map((row) => {
+          {visibleRows.map((row) => {
             const unknown = row.output === '*' || row.output.endsWith('.*');
             return (
               <div className="output-preview-item" key={row.id} role="listitem">
@@ -136,6 +142,11 @@ export function OutputPreview({
               </div>
             );
           })}
+          {hiddenCount > 0 ? (
+            <div className="output-preview-more">
+              还有 {hiddenCount} 个字段，点「详情」查看全部
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -140,6 +140,8 @@ export default function App() {
   const [highlightField, setHighlightField] = useState<string>();
   const [riskOpen, setRiskOpen] = useState(false);
   const [beatOpen, setBeatOpen] = useState(false);
+  const [largeRelationsOpen, setLargeRelationsOpen] = useState(false);
+  const [largeMapOpen, setLargeMapOpen] = useState(false);
   const [syntaxKeyword, setSyntaxKeyword] = useState<string | null>(null);
   const [dictionaryEnabled, setDictionaryEnabled] = useState(readDictionaryEnabled);
   const [structureDetail, setStructureDetail] = useState<{
@@ -191,6 +193,10 @@ export default function App() {
   );
   const lineCount = sql ? sql.split('\n').length : 0;
   const sqlComments = useMemo(() => collectSqlComments(sql), [sql]);
+  const activeRelations = analysis.relations[statementIndex];
+  const isLargeResult =
+    (activeRelations?.sources.length ?? 0) > 40 ||
+    (activeRelations?.lineage.length ?? 0) > 120;
   const highRiskCount = analysis.issues.filter((issue) => issue.severity === 'high').length;
 
   const requestScroll = (line: number) => {
@@ -330,6 +336,8 @@ export default function App() {
     setRiskOpen(false);
     setStructureDetail(null);
     setBeatOpen(false);
+    setLargeRelationsOpen(false);
+    setLargeMapOpen(false);
     setSyntaxKeyword(null);
   }, [sql]);
 
@@ -484,6 +492,7 @@ export default function App() {
             relations={analysis.relations[statementIndex]}
             statementIndex={statementIndex}
             statementCount={analysis.statements.length}
+            maxItems={isLargeResult ? 24 : undefined}
             onSelectLine={handleSelectLine}
           />
 
@@ -635,16 +644,27 @@ export default function App() {
             />
           )}
 
-          <SelectMap
-            relations={analysis.relations[statementIndex]}
-            highlightTable={highlightTable}
-            highlightField={highlightField}
-            onSelectLine={handleSelectLine}
-            onHighlight={(table, source) => {
-              setHighlightTable(table);
-              setHighlightField(source);
-            }}
-          />
+          {isLargeResult && !largeMapOpen ? (
+            <div className="large-result-note">
+              <span>
+                字段地图包含 {activeRelations?.lineage.length ?? 0} 个输出字段，已折叠以避免大 SQL 卡顿。
+              </span>
+              <button type="button" onClick={() => setLargeMapOpen(true)}>
+                展开字段地图
+              </button>
+            </div>
+          ) : (
+            <SelectMap
+              relations={activeRelations}
+              highlightTable={highlightTable}
+              highlightField={highlightField}
+              onSelectLine={handleSelectLine}
+              onHighlight={(table, source) => {
+                setHighlightTable(table);
+                setHighlightField(source);
+              }}
+            />
+          )}
 
           {analysis.parseError && (
             <div className="parse-banner" role="alert">
@@ -717,7 +737,17 @@ export default function App() {
             </section>
           )}
 
-          {analysis.relations.length > 0 && (
+          {isLargeResult && !largeRelationsOpen ? (
+            <div className="large-result-note">
+              <span>
+                关系图包含 {activeRelations?.sources.length ?? 0} 个数据源、
+                {activeRelations?.joins.length ?? 0} 条连接，已折叠以避免大 SQL 卡顿。
+              </span>
+              <button type="button" onClick={() => setLargeRelationsOpen(true)}>
+                展开关系图
+              </button>
+            </div>
+          ) : analysis.relations.length > 0 ? (
             <RelationsView
               relations={analysis.relations}
               statementIndex={statementIndex}
@@ -731,7 +761,7 @@ export default function App() {
                 setHighlightField(undefined);
               }}
             />
-          )}
+          ) : null}
         </section>
       </main>
 
@@ -790,7 +820,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.9.1
+          左侧色条对应子句 · 点击行可定位 · v0.9.2
         </span>
       </footer>
     </div>

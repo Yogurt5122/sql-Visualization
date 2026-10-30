@@ -553,4 +553,18 @@ FROM (
       '常量或表达式',
     ]);
   });
+
+  it('超长 AND 条件链不会递归爆栈', () => {
+    const conditions = Array.from(
+      { length: 5000 },
+      (_, index) => `t_demo_order.value_${index + 1} = ${index % 2}`,
+    ).join(' AND ');
+    const analysis = analyzeSql(
+      `SELECT id FROM t_demo_order WHERE ${conditions}`,
+      'mysql',
+    );
+
+    expect(analysis.mode).toBe('semantic');
+    expect(analysis.semantic[0]?.whereCount).toBe(5000);
+  });
 });

@@ -8,7 +8,7 @@
 
 ![SQL 透视镜界面预览](assets/preview.png)
 
-> 当前 **0.9.1**：Lighthouse 基线通过，移动/桌面可访问性均为 100。
+> 当前 **0.9.2**：单文件 10k 行 SQL 实测通过，超大结果自动折叠。
 
 ---
 
@@ -32,6 +32,7 @@
 
 | 版本 | 更新了啥 |
 | --- | --- |
+| 0.9.2 | 单文件 10k 行实测；大结果折叠；AST 深链改显式栈，修复递归爆栈 |
 | 0.9.1 | Lighthouse 基线；CodeMirror / 流程 / 查询概览 ARIA 修复；浅色对比度修复 |
 | 0.9.0 | 主包 gzip 预算接入构建 / CI，超过 300 KB 直接失败 |
 | 0.8.2 | PWA 导航网络优先 / 缓存兜底；静态资源未缓存回网络；修复 iOS 旧 SW 503 打不开 |
@@ -174,7 +175,7 @@ cd app
 pnpm build:single
 ```
 
-产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.54 MB，gzip 约 0.79 MB。
+产物是单个 `dist-single/sql-xray.html`，JS/CSS 全部内联，双击用 `file://` 打开即可。`file://` 下 Web Worker 不可用，分析会自动回退主线程；Service Worker / PWA 不参与单文件模式。文件约 3.58 MB，gzip 约 0.81 MB。
 
 ### 规划中
 
@@ -411,7 +412,7 @@ id = hash(kind + ':' + startLine + ':' + startCol + ':' + normalize(text)).slice
 - 左：CodeMirror 6 编辑器，子句左侧彩色竖条（取数蓝 / 过滤橙 / 聚合紫 / 计算绿 / 排序灰 / 风险红）。
 - 右：一句话总结 → 指标 → 风险 → 执行流程 → 结构 → 数据关系。
 - 点解释跳到行，点行高亮解释。
-- 不加载 Web Font、不引 UI 组件库；主包约 216.4 KB gzip，`format` 按需 74 KB，Worker 解析包约 521.6 KB，CSS 11.2 KB，SW 0.9 KB。
+- 不加载 Web Font、不引 UI 组件库；主包约 216.9 KB gzip，`format` 按需 74 KB，Worker 解析包约 521.6 KB，CSS 11.2 KB，SW 0.9 KB。
 
 ### 7.9 设计规范（实现依据）
 

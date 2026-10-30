@@ -4578,3 +4578,36 @@ button {
   stroke: var(--accent);
   stroke-width: 1.6;
 }
+
+.large-result-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 2px 8px;
+  padding: 9px 11px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.large-result-note button {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--accent-ink);
+  font-size: 11px;
+}
+
+.output-preview-more {
+  padding: 5px 6px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
