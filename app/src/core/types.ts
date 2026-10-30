@@ -1,3 +1,5 @@
+import type { ExternalParameter } from './external-params';
+
 export type Dialect = 'auto' | 'mysql' | 'tsql' | 'postgres' | 'dm8';
 export type ResolvedDialect = Exclude<Dialect, 'auto'>;
 
@@ -249,6 +251,7 @@ export interface Analysis {
   summaries: string[];
   summary: string;
   warnings: string[];
+  parameters: ExternalParameter[];
   mode: 'semantic' | 'structural';
   preprocess: PreprocessInfo;
   parseError?: {

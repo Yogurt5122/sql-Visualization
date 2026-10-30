@@ -1,4 +1,5 @@
 import { Parser } from 'node-sql-parser';
+import { externalParameterNamesIn } from '../core/external-params';
 import type {
   ClauseKind,
   JoinType,
@@ -552,6 +553,21 @@ export function buildSemanticRelations(
       expr?.type === 'star' ||
       (expr?.type === 'column_ref' && expr.column === '*');
     const output = alias ?? (isStar ? '*' : compact(text, 28));
+    const parameters = externalParameterNamesIn(text);
+
+    if (parameters.length > 0) {
+      lineage.push({
+        id: `${idPrefix}-sem-lineage-${index + 1}`,
+        output,
+        source: `外部参数 ${parameters.join(' + ')}`,
+        transform: parameters.length === 1 && text.trim() === `'<!${parameters[0]}!>'`
+          ? 'direct'
+          : transformOf(expr),
+        line: nodeLoc(expr).line ?? 1,
+        confidence: 'exact',
+      });
+      continue;
+    }
 
     if (isStar) {
       const fromItems = (root.from as AstNode[] | undefined) ?? [];

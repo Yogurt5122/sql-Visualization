@@ -3,6 +3,11 @@ import { scan } from './scanner';
 import { splitStatements } from './splitter';
 import { splitTopLevel, stripLeadingKeyword } from './sql-text';
 import { parseDdlSchema, resolveSourceTypes } from './ddl';
+import {
+  annotateExternalParameters,
+  collectExternalParameters,
+  externalParameterName,
+} from './external-params';
 import { buildMetrics, buildRelations, mergeMetrics } from './relations';
 import { runRules } from './rules';
 import { buildSemanticQuery, buildSemanticRelations, parseSemantic, summarizeSemantic } from '../parsers/semantic';
@@ -53,6 +58,8 @@ function truncate(text: string, max: number): string {
 
 function cleanValue(value: string): string {
   const trimmed = value.trim();
+  const parameter = externalParameterName(trimmed);
+  if (parameter) return `外部参数 ${parameter}`;
   if (
     trimmed.length >= 2 &&
     ((trimmed.startsWith("'") && trimmed.endsWith("'")) ||
@@ -530,7 +537,7 @@ function buildExplanations(
       const { plain, refs } = explainClause(clause, relation);
       result.push({
         clauseId: clause.id,
-        plain,
+        plain: annotateExternalParameters(plain),
         technical: truncate(clause.text, 400),
         refs,
       });
@@ -761,9 +768,16 @@ export function analyzeSql(
     }),
   );
   const metrics = mergeMetrics(statementMetrics);
-  const summaries = statements.map((statement, index) =>
-    buildSummary([statement], [semanticModels[index] ?? null], [relations[index]!]),
-  );
+  const parameters = collectExternalParameters(sql);
+  const parameterNames = [...new Set(parameters.map((parameter) => parameter.name))];
+  const summaries = statements.map((statement, index) => {
+    const body = annotateExternalParameters(
+      buildSummary([statement], [semanticModels[index] ?? null], [relations[index]!]),
+    );
+    return parameterNames.length > 0
+      ? `${body.replace(/。$/, '')}；外部参数：${parameterNames.join('、')}。`
+      : body;
+  });
   const summary = summaries[0] ?? '还没有可分析的 SQL。';
 
   const warnings = [
@@ -795,6 +809,7 @@ export function analyzeSql(
     summaries,
     summary,
     warnings,
+    parameters,
     mode,
     preprocess,
     parseError,

@@ -559,6 +559,18 @@ export default function App() {
             </p>
           </div>
 
+          {analysis.parameters.length > 0 ? (
+            <div className="param-note">
+              <span>外部参数</span>
+              {[...new Set(analysis.parameters.map((parameter) => parameter.name))].map(
+                (name) => (
+                  <code key={name}>{name}</code>
+                ),
+              )}
+              <span className="muted">共 {analysis.parameters.length} 处</span>
+            </div>
+          ) : null}
+
           {analysis.preprocess.detected && (
             <div className="mybatis-banner">
               <span>
@@ -820,7 +832,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.9.3
+          左侧色条对应子句 · 点击行可定位 · v0.9.4
         </span>
       </footer>
     </div>

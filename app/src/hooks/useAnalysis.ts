@@ -29,6 +29,7 @@ function pendingAnalysis(dialect: Dialect, variant: MybatisVariant): Analysis {
     summaries: [],
     summary: '正在分析 SQL…',
     warnings: [],
+    parameters: [],
     mode: 'structural',
     preprocess: {
       detected: false,
