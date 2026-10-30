@@ -11,7 +11,7 @@ export function FlowView({ steps, activeStepId, onSelect }: FlowViewProps) {
   if (steps.length === 0) return null;
 
   return (
-    <div className="flow-track" role="list" aria-label="SQL 逻辑执行流程">
+    <div className="flow-track" role="group" aria-label="SQL 逻辑执行流程">
       {steps.map((step, index) => (
         <Fragment key={step.id}>
           {index > 0 && (
@@ -21,7 +21,6 @@ export function FlowView({ steps, activeStepId, onSelect }: FlowViewProps) {
           )}
           <button
             type="button"
-            role="listitem"
             className={`flow-step flow-effect-${step.effect}${
               step.id === activeStepId ? ' is-active' : ''
             }`}

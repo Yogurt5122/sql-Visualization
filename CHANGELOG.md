@@ -1,5 +1,11 @@
 # 更新记录
 
+## 0.9.1
+
+- 补 Lighthouse 移动 / 桌面基线：Performance 96 / 100，Accessibility 100 / 100，Best Practices 96 / 100。
+- 修复 CodeMirror 输入框缺少可访问名称、流程按钮 ARIA 角色不兼容、查询概览 list 子项不完整。
+- 提高浅色主题辅助文字和流程标签对比度。
+
 ## 0.9.0
 
 - 构建新增主包 gzip 预算检查：入口 JS 超过 300 KB 直接失败。

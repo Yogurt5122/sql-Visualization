@@ -159,6 +159,7 @@ export function Editor({
         themeCompartment.current.of(theme === 'dark' ? darkTheme : []),
         clauseBars,
         EditorView.lineWrapping,
+        EditorView.contentAttributes.of({ 'aria-label': 'SQL 输入编辑器' }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());

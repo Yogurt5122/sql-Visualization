@@ -586,23 +586,23 @@ export default function App() {
             </div>
           ) : null}
 
-          <div className="query-stats" role="list" aria-label="查询概览">
+          <div className="query-stats" role="group" aria-label="查询概览">
             {analysis.statements.length > 1 ? (
               <span className="query-stats-scope">语句 {statementIndex + 1}</span>
             ) : null}
-            <span role="listitem">
+            <span>
               <b>{analysis.statements.length}</b> 语句
             </span>
-            <span role="listitem">
+            <span>
               <b>{clauses.length}</b> 子句
             </span>
-            <span role="listitem">
+            <span>
               <b>{activeMetrics.tables}</b> 表
             </span>
-            <span role="listitem">
+            <span>
               <b>{activeMetrics.joins}</b> JOIN
             </span>
-            <span role="listitem">
+            <span>
               <b>{activeMetrics.outputs}</b> 输出
             </span>
             {analysis.issues.length > 0 ? (
@@ -615,14 +615,14 @@ export default function App() {
                 {highRiskCount > 0 ? <em>高 {highRiskCount}</em> : null}
               </button>
             ) : (
-              <span role="listitem">
+              <span>
                 <b>0</b> 风险
               </span>
             )}
-            <span role="listitem">
+            <span>
               <b>{lineCount}</b> 行
             </span>
-            <span role="listitem" className="query-stats-depth">
+            <span className="query-stats-depth">
               深度 {activeMetrics.depth} · 复杂度 {activeMetrics.complexity}
             </span>
           </div>
@@ -790,7 +790,7 @@ export default function App() {
       <footer className="statusbar">
         <span>本地分析 · 不上传 · 不落盘</span>
         <span className="muted">
-          左侧色条对应子句 · 点击行可定位 · v0.9.0
+          左侧色条对应子句 · 点击行可定位 · v0.9.1
         </span>
       </footer>
     </div>
