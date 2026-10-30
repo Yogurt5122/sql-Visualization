@@ -33,7 +33,8 @@ for (const file of files) {
   hash.update(relative(dist, file).split(sep).join('/'));
   hash.update(readFileSync(file));
 }
-const version = `sql-xray-${pkg.version}-${hash.digest('hex').slice(0, 10)}`;
+const SW_STRATEGY = 'network-first-1';
+const version = `sql-xray-${pkg.version}-${hash.digest('hex').slice(0, 10)}-${SW_STRATEGY}`;
 const precache = files.map((file) => `./${relative(dist, file).split(sep).join('/')}`);
 
 const sw = `/* SQL 透视镜 Service Worker：只缓存静态产物，不缓存 SQL。 */
@@ -73,19 +74,60 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
+    // 网络优先：避免 iOS 回收缓存后旧 SW 只读缓存、直接 503。
     event.respondWith(
-      caches
-        .match(INDEX, { ignoreSearch: true })
-        .then((cached) => cached || caches.match(request, { ignoreSearch: true }))
-        .then((cached) => cached || new Response('离线缓存尚不可用', { status: 503 })),
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            void caches
+              .open(CACHE_VERSION)
+              .then((cache) => cache.put(INDEX, copy))
+              .catch(() => undefined);
+          }
+          return response;
+        })
+        .catch(() =>
+          caches
+            .match(INDEX, { ignoreSearch: true })
+            .then((cached) => cached || caches.match(request, { ignoreSearch: true }))
+            .then(
+              (cached) =>
+                cached ||
+                new Response('离线缓存尚不可用，请联网后重试', {
+                  status: 503,
+                  headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+                }),
+            ),
+        ),
     );
     return;
   }
 
+  // 静态资源缓存优先；未命中时回网络，避免新 hash 资源被旧 SW 阻断。
   event.respondWith(
-    caches
-      .match(request.url, { ignoreSearch: true })
-      .then((cached) => cached || new Response('资源未缓存', { status: 404 })),
+    caches.match(request, { ignoreSearch: true }).then(
+      (cached) =>
+        cached ||
+        fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const copy = response.clone();
+              void caches
+                .open(CACHE_VERSION)
+                .then((cache) => cache.put(request, copy))
+                .catch(() => undefined);
+            }
+            return response;
+          })
+          .catch(
+            () =>
+              new Response('资源未缓存，请联网后重试', {
+                status: 503,
+                headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+              }),
+          ),
+    ),
   );
 });
 

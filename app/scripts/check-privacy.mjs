@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { extname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const roots = [
@@ -34,9 +34,12 @@ const externalRef =
 for (const file of files) {
   const ext = extname(file);
   const text = readFileSync(file, 'utf8');
+  // Service Worker 的 fetch 只用于同源静态资源与导航；应用代码仍禁止网络 API。
+  const isServiceWorker = file.endsWith(`${sep}sw.js`);
 
   if (ext === '.js') {
     for (const api of networkApis) {
+      if (isServiceWorker && api.name === 'fetch()') continue;
       if (api.pattern.test(text)) {
         problems.push(`${file}: 发现网络 API ${api.name}`);
       }
@@ -58,5 +61,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `隐私检查通过：扫描 ${files.length} 个构建产物文件，未发现网络 API 或外部资源引用。`,
+  `隐私检查通过：扫描 ${files.length} 个构建产物文件，未发现应用网络 API 或外部资源引用。`,
 );
